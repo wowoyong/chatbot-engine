@@ -1,6 +1,7 @@
 # core-engine — Implementation Plan Index
 
 Baseline: main@14c2a44 (clean)
+구현 완료: `main@1e36d80` (Phase 0: 31229c1 / Phase 1: 3af9416 / Phase 2: 1e36d80 — 테스트 19 passed, AC 전 항목 검증)
 
 ## 개요
 
