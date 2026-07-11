@@ -11,7 +11,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sync-wiki": "bash scripts/sync-wiki.sh"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",
