@@ -122,4 +122,50 @@ describe('ChatSession', () => {
     await collect(session.send('새 질문'));
     expect(fake.calls[1]).toEqual([{ role: 'user', content: '새 질문' }]);
   });
+
+  it('컨텍스트 예산 초과 시 이전 대화가 요약 메시지로 압축되어 전송된다 (정상)', async () => {
+    const streamCalls: ChatMessage[][] = [];
+    const tinyClient: LlmClient = {
+      async chat() {
+        return '파란색 선호';
+      },
+      async *chatStream(messages: ChatMessage[]) {
+        streamCalls.push(messages);
+        yield 'ok';
+      },
+    };
+    const session = new ChatSession(tinyClient, {
+      context: { maxContextTokens: 0, reserveTokens: 0 },
+    });
+
+    await collect(session.send('첫 질문'));
+    await collect(session.send('둘째 질문'));
+
+    expect(streamCalls.at(1)).toEqual([
+      { role: 'system', content: '이전 대화 요약: 파란색 선호' },
+      { role: 'user', content: '둘째 질문' },
+    ]);
+  });
+
+  it('clear() 후에는 요약 메시지 없이 전송된다 (경계값)', async () => {
+    const streamCalls: ChatMessage[][] = [];
+    const tinyClient: LlmClient = {
+      async chat() {
+        return '요약';
+      },
+      async *chatStream(messages: ChatMessage[]) {
+        streamCalls.push(messages);
+        yield 'ok';
+      },
+    };
+    const session = new ChatSession(tinyClient, {
+      context: { maxContextTokens: 0, reserveTokens: 0 },
+    });
+
+    await collect(session.send('첫 질문'));
+    session.clear();
+    await collect(session.send('새 질문'));
+
+    expect(streamCalls.at(1)).toEqual([{ role: 'user', content: '새 질문' }]);
+  });
 });
