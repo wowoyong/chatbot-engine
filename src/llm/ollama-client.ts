@@ -22,7 +22,7 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 
 export class OllamaClient implements LlmClient {
   private readonly baseUrl: string;
-  private readonly model: string;
+  readonly model: string;
   private readonly fetchFn: FetchLike;
 
   constructor(config: OllamaClientConfig = {}) {
