@@ -5,7 +5,7 @@ Baseline: main@1e36d80 (clean)
 
 ## 개요
 
-Segment 2 — 컨텍스트 예산 관리(토큰 추정 + 쌍 단위 트리밍 + LLM 요약 압축)와 세션 영속화(JSON 자동 저장/복원). 설계 문서 `docs/superpowers/specs/2026-07-11-chatbot-engine-design.md`의 Phase 2에 해당. 압축 전략(트리밍+요약)과 영속화 방식(자동 저장/복원)은 사용자 승인 완료.
+Segment 2 — 컨텍스트 예산 관리(토큰 추정 + 쌍 단위 트리밍 + LLM 요약 압축)와 세션 영속화(JSON 자동 저장/복원). 설계 문서 `docs/design/2026-07-11-chatbot-engine-design.md`의 Phase 2에 해당. 압축 전략(트리밍+요약)과 영속화 방식(자동 저장/복원)은 사용자 승인 완료.
 
 ## Phases
 
@@ -38,7 +38,7 @@ Phase 0 → 1 → 2 (순차).
 
 | 분류 | 파일 | 정책 |
 |------|------|------|
-| **Do Not Touch** | `src/llm/**` (Segment 1의 LLM 레이어), `docs/superpowers/specs/**`, `docs/plans/core-engine-*.md` | 본 Segment는 LLM 레이어 위에서만 동작 — 파서/클라이언트 무변경 |
+| **Do Not Touch** | `src/llm/**` (Segment 1의 LLM 레이어), `docs/design/**`, `docs/plans/core-engine-*.md` | 본 Segment는 LLM 레이어 위에서만 동작 — 파서/클라이언트 무변경 |
 | **Touch-Minimal** | `.gitignore` (2줄 추가), `CLAUDE.md` (1줄 추가), `src/chat/__tests__/session.test.ts` (케이스 추가만 — 기존 케이스 수정 금지) | 본 변경 외 기존 내용 재수정 금지 |
 | **Full Scope** | `src/context/**` (신규), `src/store/**` (신규), `src/chat/session.ts`, `src/cli/main.ts` | 통상 품질 기준 |
 
@@ -119,7 +119,7 @@ N/A — breaking change 없음. `ChatSessionConfig`는 선택 필드 추가만, 
 ## 최종 게이트
 1. Phase의 "최종 검증" 자동 검증 명령 실행, 결과 보고
 2. Plan Fidelity Check:
-   node "$HOME/.claude/plugins/cache/rtb-tools/rtb/1.3.90/skills/plan/scripts/check-plan-fidelity.js" \
+   node <계획 도구>/check-plan-fidelity.js \
      docs/plans/memory-phase-N.md <이번 Phase에서 생성/수정한 모든 src 파일>
    exit 0=PASS / 1=누락 토큰 보완 / 스크립트 부재 시 최종 검증으로 갈음
 ```

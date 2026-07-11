@@ -304,7 +304,7 @@ N/A
 # chatbot-engine
 
 Qwen3 8B(로컬 Ollama) 기반 대화형 챗봇 엔진 — 프레임워크 없이 밑바닥부터 구현하는 학습 프로젝트.
-설계 문서: `docs/superpowers/specs/2026-07-11-chatbot-engine-design.md`
+설계 문서: `docs/design/2026-07-11-chatbot-engine-design.md`
 
 ## 명령어
 

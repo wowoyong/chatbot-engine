@@ -7,7 +7,7 @@ Baseline: main@b29d643 (clean)
 
 Segment 4 — OpenWiki(`openwiki@0.1.1`, DeepAgents 기반)로 엔진 레포를 자동 문서화하고, 산출물을 별도 레포 `chatbot-engine-wiki`로 분리한 뒤, Segment 3의 RAG(`RAG_DOCS_DIR`)로 챗봇이 자기 wiki를 습득하게 한다.
 
-> **rtb:plan 형식 예외 (사유 명시)**: 본 segment는 Haiku가 복사할 코드 블록이 아니라 **외부 대화형 CLI 운영 작업**(에이전트 실행·모니터링·품질 판정)이 중심이므로, Phase별 완전 코드 문서 대신 명령·판정 기준·fallback을 기록하는 운영 계획으로 대체한다. 실행은 메인 세션이 직접 수행.
+> **계획 형식 예외 (사유 명시)**: 본 segment는 Haiku가 복사할 코드 블록이 아니라 **외부 대화형 CLI 운영 작업**(에이전트 실행·모니터링·품질 판정)이 중심이므로, Phase별 완전 코드 문서 대신 명령·판정 기준·fallback을 기록하는 운영 계획으로 대체한다. 실행은 메인 세션이 직접 수행.
 
 ## 확정 결정 (사용자 승인)
 

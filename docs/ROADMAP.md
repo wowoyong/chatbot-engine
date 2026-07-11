@@ -1,7 +1,7 @@
 # ROADMAP — chatbot-engine 다음 단계
 
 > 2026-07-11 기준. 설계 문서의 Segment 1~6 + 웹 + knowledge-capture + GitHub 업로드 완료 상태에서의 후속 계획.
-> 각 항목은 rtb:plan 워크플로우(사전 분석 → 계획서 → 구현 → 게이트)로 진행한다. 근거는 전부 실측 — `docs/plans/*-index.md`의 기록 참조.
+> 각 항목은 계획 워크플로우(사전 분석 → 계획서 → 구현 → 게이트)로 진행한다. 근거는 전부 실측 — `docs/plans/*-index.md`의 기록 참조.
 
 ## Track A — 검색 품질: 하이브리드 검색 + 평가 세트 ⭐ 1순위
 

@@ -5,7 +5,7 @@ Baseline: main@14c2a44 (clean)
 
 ## 개요
 
-Qwen3 8B(로컬 Ollama) 대화형 챗봇 엔진의 Segment 1 — 스캐폴딩 + LLM 레이어 + 세션/CLI. 설계 문서: `docs/superpowers/specs/2026-07-11-chatbot-engine-design.md` (사용자 승인 완료).
+Qwen3 8B(로컬 Ollama) 대화형 챗봇 엔진의 Segment 1 — 스캐폴딩 + LLM 레이어 + 세션/CLI. 설계 문서: `docs/design/2026-07-11-chatbot-engine-design.md` (사용자 승인 완료).
 
 ## Phases
 
@@ -42,7 +42,7 @@ Phase 0 → Phase 1 → Phase 2 (순차 — 병렬 가능 Phase 없음).
 
 | 분류 | 파일 | 정책 |
 |------|------|------|
-| **Do Not Touch** | `docs/superpowers/specs/**`, `.git/**` | 설계 문서와 git 내부 — 본 작업과 무관 |
+| **Do Not Touch** | `docs/design/**`, `.git/**` | 설계 문서와 git 내부 — 본 작업과 무관 |
 | **Touch-Minimal** | — 해당 없음 | (기존 코드 없음) |
 | **Full Scope** | `package.json`, `tsconfig*.json`, `vitest.config.ts`, `.gitignore`, `CLAUDE.md`, `src/**` | 전부 신규 생성 |
 
@@ -123,7 +123,7 @@ N/A — breaking change 없음, 기존 호출자 없음 (greenfield).
 ## 최종 게이트
 Phase의 "최종 검증" 명령을 실행하고 결과(PASS/FAIL)를 보고.
 Plan Fidelity Check (환경에 스크립트가 있는 경우):
-  node "$HOME/.claude/plugins/cache/rtb-tools/rtb/1.3.90/skills/plan/scripts/check-plan-fidelity.js" \
+  node <계획 도구>/check-plan-fidelity.js \
     docs/plans/core-engine-phase-N.md <이번 Phase에서 생성한 모든 src 파일>
   exit 0=PASS / 1=누락 토큰 재구현 / 스크립트 부재 시 최종 검증 명령 결과로 갈음.
 ```
