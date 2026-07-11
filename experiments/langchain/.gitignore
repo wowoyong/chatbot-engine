@@ -1,0 +1,3 @@
+.lc-store.json
+.lc-checkpoint.db*
+smoke*.mjs

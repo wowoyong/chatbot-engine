@@ -9,7 +9,10 @@ export interface NoveltyVerdict {
   isNew: boolean;
 }
 
-export const DEFAULT_NOVELTY_THRESHOLD = 0.75;
+// 실측(2026-07-11, LangChain 비교 실험에서 발견): nomic 임베딩 공간에서 무관한
+// 한국어 문장끼리도 0.77~0.87이 나온다 — 0.75는 인덱스가 비어있지 않으면 전부 스킵.
+// 거의 동일한 중복은 0.96+ — 중복만 걸러내도록 0.95로 설정 (유실보다 중복이 낫다).
+export const DEFAULT_NOVELTY_THRESHOLD = 0.95;
 
 /**
  * 후보별 기존 인덱스 최고 유사도로 신규 여부를 판정한다.
