@@ -18,3 +18,8 @@ export interface LlmClient {
   /** 응답 content 조각을 도착 순서대로 yield */
   chatStream(messages: ChatMessage[], options?: ChatOptions): AsyncIterable<string>;
 }
+
+export interface Embedder {
+  /** 각 입력 텍스트의 임베딩 벡터를 같은 순서로 반환 */
+  embed(texts: string[]): Promise<number[][]>;
+}

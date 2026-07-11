@@ -1,5 +1,5 @@
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile, rename, rm } from 'node:fs/promises';
+import { writeFileAtomic } from './atomic-file.js';
 import type { ChatMessage } from '../llm/types.js';
 
 export interface PersistedSession {
@@ -70,17 +70,14 @@ export class SessionStore {
     }
   }
 
-  /** 원자적 저장: `<파일>.tmp`에 쓴 뒤 rename */
+  /** 원자적 저장: writeFileAtomic (tmp 기록 → rename) */
   async save(history: readonly ChatMessage[]): Promise<void> {
     const data: PersistedSession = {
       version: 1,
       history: history.map((m) => ({ ...m })),
       savedAt: new Date().toISOString(),
     };
-    await mkdir(dirname(this.filePath), { recursive: true });
-    const tmpPath = `${this.filePath}.tmp`;
-    await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf8');
-    await rename(tmpPath, this.filePath);
+    await writeFileAtomic(this.filePath, JSON.stringify(data, null, 2));
   }
 
   async clear(): Promise<void> {
