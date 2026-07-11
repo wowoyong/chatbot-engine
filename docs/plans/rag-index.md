@@ -1,6 +1,7 @@
 # rag — Implementation Plan Index
 
 Baseline: main@f978775 (clean)
+구현 완료: `main@0f82442` (Phase 0: 1e0cea5 / Phase 1: 8568237 / Phase 2: f832afe / Phase 3: 0f82442 — 테스트 80 passed)
 
 ## 개요
 
