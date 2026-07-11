@@ -1,6 +1,7 @@
 # openwiki — Segment 4 실행 계획 (운영형)
 
 Baseline: main@b29d643 (clean)
+구현 완료: Phase 0~2 전체 (wiki 6문서 생성·별도 레포 sync·RAG 자기참조 검증 — 상세는 커밋 로그)
 
 ## 개요
 
