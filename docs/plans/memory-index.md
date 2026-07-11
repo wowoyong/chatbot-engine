@@ -1,6 +1,7 @@
 # memory — Implementation Plan Index
 
 Baseline: main@1e36d80 (clean)
+구현 완료: `main@cda55cb` (Phase 0: 6ed54a2 / Phase 1: 04eb66c / Phase 2: cda55cb — 테스트 45 passed, AC 전 항목 검증)
 
 ## 개요
 
