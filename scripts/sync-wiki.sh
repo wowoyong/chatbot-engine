@@ -17,7 +17,7 @@ fi
 rsync -a --delete --exclude '.last-update.json' openwiki/ "$WIKI_REPO/$WIKI_SUBDIR/"
 
 cd "$WIKI_REPO"
-git add -A
+git add -A -- "$WIKI_SUBDIR"
 if git diff --cached --quiet; then
   echo "변경 없음 — wiki 최신 상태"
 else
