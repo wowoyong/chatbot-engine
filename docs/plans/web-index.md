@@ -1,6 +1,7 @@
 # web — Implementation Plan Index
 
 Baseline: main@17f680b (clean)
+구현 완료: `main@5fbf9c4` (Phase 0: d54e947 / Phase 1: f191ff5 / Phase 2: 5fbf9c4 — 테스트 92 passed, 라이브 SSE 검증. 알려진 뉘앙스: 클라이언트 중단 감지(res.destroyed)는 best-effort — 실측에서 소켓 종료 인지가 늦어 생성 완주·기록됨, 피해 없음, 개선 후보: req 'close' 리스너)
 (미커밋 파일은 본 plan 문서 4개뿐 — src 기준 clean, Segment 4 + knowledge 시딩 landing 완료 상태)
 
 ## 개요
