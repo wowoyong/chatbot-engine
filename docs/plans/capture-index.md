@@ -1,6 +1,7 @@
 # capture — Implementation Plan Index
 
 Baseline: main@753ba77 (clean)
+구현 완료: `main@bc67582` (Phase 0: a3a830f / Phase 1: 26babd8 / Phase 2: bc67582 — 테스트 114 passed, 실기 AC: 저장→멱등 스킵→RAG 회상 루프 검증)
 
 ## 개요
 
