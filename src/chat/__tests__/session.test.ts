@@ -184,4 +184,52 @@ describe('ChatSession', () => {
     await collect(session.send('새 질문'));
     expect(fake.calls.at(0)).toEqual([...saved, { role: 'user', content: '새 질문' }]);
   });
+
+  it('retriever의 발췌 블록이 전송 메시지에 포함된다 (정상)', async () => {
+    const streamCalls: ChatMessage[][] = [];
+    const ragClient: LlmClient = {
+      async chat() {
+        return '요약';
+      },
+      async *chatStream(messages: ChatMessage[]) {
+        streamCalls.push(messages);
+        yield 'ok';
+      },
+    };
+    const session = new ChatSession(ragClient, {
+      retriever: { retrieve: async () => ({ block: '[doc.md]\n발췌' }) },
+    });
+
+    await collect(session.send('질문'));
+
+    expect(streamCalls.at(0)).toEqual([
+      { role: 'system', content: '[doc.md]\n발췌' },
+      { role: 'user', content: '질문' },
+    ]);
+  });
+
+  it('retriever가 실패해도 발췌 없이 대화가 계속된다 (에러)', async () => {
+    const streamCalls: ChatMessage[][] = [];
+    const ragClient: LlmClient = {
+      async chat() {
+        return '요약';
+      },
+      async *chatStream(messages: ChatMessage[]) {
+        streamCalls.push(messages);
+        yield 'ok';
+      },
+    };
+    const session = new ChatSession(ragClient, {
+      retriever: {
+        retrieve: async () => {
+          throw new Error('embed down');
+        },
+      },
+    });
+
+    const pieces = await collect(session.send('질문'));
+
+    expect(pieces).toEqual(['ok']);
+    expect(streamCalls.at(0)).toEqual([{ role: 'user', content: '질문' }]);
+  });
 });

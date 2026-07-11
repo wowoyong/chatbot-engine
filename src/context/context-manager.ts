@@ -41,17 +41,21 @@ export class ContextManager {
   }
 
   /**
-   * [system?, 요약?, 최근 히스토리, 새 질문] 형태로 예산에 맞는 메시지 배열을 만든다.
+   * [system?, 검색 발췌?, 요약?, 최근 히스토리, 새 질문] 형태로 예산에 맞는 메시지 배열을 만든다.
    * 요약 실패 시: 이전 캐시가 dropped 범위 일부라도 덮으면 재사용, 없으면 트리밍만.
    */
   async prepare(
     systemPrompt: string | null,
     history: readonly ChatMessage[],
     userInput: string,
+    contextBlock: string | null = null,
   ): Promise<PreparedContext> {
     const fixed: ChatMessage[] = [];
     if (systemPrompt !== null) {
       fixed.push({ role: 'system', content: systemPrompt });
+    }
+    if (contextBlock !== null) {
+      fixed.push({ role: 'system', content: contextBlock });
     }
     const userMessage: ChatMessage = { role: 'user', content: userInput };
 

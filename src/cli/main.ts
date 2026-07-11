@@ -3,21 +3,52 @@ import { env, exit, stdin, stdout } from 'node:process';
 import { ChatSession } from '../chat/session.js';
 import { LlmConnectionError } from '../llm/errors.js';
 import { OllamaClient } from '../llm/ollama-client.js';
+import { OllamaEmbedder } from '../llm/ollama-embedder.js';
+import { buildIndex } from '../rag/indexer.js';
+import { Retriever } from '../rag/retriever.js';
+import { VectorIndex } from '../rag/vector-index.js';
 import { SessionStore } from '../store/session-store.js';
 
 const SYSTEM_PROMPT =
   '당신은 간결하고 정확하게 답하는 한국어 어시스턴트입니다.';
 const DEFAULT_SESSION_FILE = '.chatbot/session.json';
+const DEFAULT_INDEX_FILE = '.chatbot/rag-index.json';
+const DEFAULT_DOCS_DIR = 'docs';
 
 async function main(): Promise<void> {
   const client = new OllamaClient({
     baseUrl: env['OLLAMA_BASE_URL'],
     model: env['OLLAMA_MODEL'],
   });
-  const session = new ChatSession(client, { systemPrompt: SYSTEM_PROMPT });
+  const embedder = new OllamaEmbedder({ baseUrl: env['OLLAMA_BASE_URL'] });
   const store = new SessionStore(
     env['CHATBOT_SESSION_FILE'] ?? DEFAULT_SESSION_FILE,
   );
+  const indexFile = env['CHATBOT_INDEX_FILE'] ?? DEFAULT_INDEX_FILE;
+  const docsDir = env['RAG_DOCS_DIR'] ?? DEFAULT_DOCS_DIR;
+
+  let retriever: Retriever | null = null;
+  const loadedIndex = await VectorIndex.load(indexFile);
+  if (loadedIndex !== null) {
+    if (loadedIndex.model === embedder.model) {
+      retriever = new Retriever(embedder, loadedIndex);
+      stdout.write(
+        `(RAG 인덱스 로드: ${loadedIndex.size}청크, 생성 ${loadedIndex.createdAt})\n`,
+      );
+    } else {
+      stdout.write(
+        `(RAG 인덱스의 임베딩 모델(${loadedIndex.model})이 현재(${embedder.model})와 달라 무시합니다 — /index로 재구축하세요)\n`,
+      );
+    }
+  }
+
+  const session = new ChatSession(client, {
+    systemPrompt: SYSTEM_PROMPT,
+    retriever: {
+      retrieve: async (query: string) =>
+        retriever !== null ? retriever.retrieve(query) : { block: null },
+    },
+  });
 
   const restored = await store.load();
   if (restored !== null && restored.length > 0) {
@@ -36,7 +67,7 @@ async function main(): Promise<void> {
   });
 
   stdout.write(
-    `chatbot-engine — ${env['OLLAMA_MODEL'] ?? 'qwen3:8b'} (명령: /exit 종료, /clear 히스토리 초기화)\n`,
+    `chatbot-engine — ${env['OLLAMA_MODEL'] ?? 'qwen3:8b'} (명령: /exit 종료, /clear 히스토리 초기화, /index RAG 인덱스 구축)\n`,
   );
 
   while (true) {
@@ -56,6 +87,22 @@ async function main(): Promise<void> {
       session.clear();
       await store.clear();
       stdout.write('(히스토리를 초기화했습니다)\n');
+      continue;
+    }
+    if (line === '/index') {
+      try {
+        stdout.write(`(${docsDir}/ 문서를 인덱싱합니다...)\n`);
+        const built = await buildIndex(embedder, docsDir, {
+          model: embedder.model,
+          createdAt: new Date().toISOString(),
+        });
+        await built.save(indexFile);
+        retriever = new Retriever(embedder, built);
+        stdout.write(`(인덱스 구축 완료: ${built.size}청크 → ${indexFile})\n`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        stdout.write(`인덱싱 오류: ${message}\n`);
+      }
       continue;
     }
 

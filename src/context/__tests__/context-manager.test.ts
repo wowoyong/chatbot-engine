@@ -135,4 +135,17 @@ describe('ContextManager', () => {
 
     expect(fake.chatCalls).toHaveLength(2);
   });
+
+  it('contextBlock이 system 메시지로 포함된다 (정상)', async () => {
+    const fake = new FakeLlmClient();
+    const manager = new ContextManager(fake);
+
+    const result = await manager.prepare('SYS', [], USER.content, '발췌 블록');
+
+    expect(result.messages).toEqual([
+      { role: 'system', content: 'SYS' },
+      { role: 'system', content: '발췌 블록' },
+      USER,
+    ]);
+  });
 });
