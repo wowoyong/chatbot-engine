@@ -1,6 +1,7 @@
 # lc-compare — Segment 6 실행 계획 (실험형)
 
 Baseline: main@e9768a4 (clean)
+구현 완료: `main@8eabdae` (AC 전 항목 실기 검증, 엔진 novelty 0.95 보정 역반영, 비교 문서 dev-wiki/knowledge/langchain-comparison.md)
 
 ## 개요
 
