@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   });
 
   stdout.write(
-    `chatbot-engine — ${app.modelName} (명령: /exit 종료, /clear 히스토리 초기화, /index RAG 인덱스 구축)\n`,
+    `chatbot-engine — ${app.modelName} (명령: /exit 종료, /clear 히스토리 초기화, /index RAG 인덱스 구축, /capture 지식 저장)\n`,
   );
 
   while (true) {
@@ -48,6 +48,25 @@ async function main(): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         stdout.write(`인덱싱 오류: ${message}\n`);
+      }
+      continue;
+    }
+    if (line === '/capture') {
+      try {
+        stdout.write('(대화에서 지식을 추출합니다...)\n');
+        const result = await app.captureKnowledge(new Date().toISOString());
+        stdout.write(
+          `(추출 ${result.extracted}건 → 저장 ${result.saved.length}건, 기존 지식 ${result.skipped.length}건)\n`,
+        );
+        for (const path of result.saved) {
+          stdout.write(`  + ${path}\n`);
+        }
+        for (const title of result.skipped) {
+          stdout.write(`  = ${title} (이미 알고 있음)\n`);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        stdout.write(`지식 추출 오류: ${message} — 다시 시도하세요.\n`);
       }
       continue;
     }

@@ -23,6 +23,7 @@
 <body>
 <h1>chatbot-engine
   <span class="actions">
+    <button id="capture" type="button">지식 저장</button>
     <button id="reindex" type="button">재인덱싱</button>
     <button id="clear" type="button">초기화</button>
   </span>
@@ -38,6 +39,7 @@ const form = document.getElementById('form');
 const input = document.getElementById('input');
 const sendBtn = document.getElementById('send');
 const clearBtn = document.getElementById('clear');
+const captureBtn = document.getElementById('capture');
 const reindexBtn = document.getElementById('reindex');
 
 function append(cls, text) {
@@ -139,6 +141,25 @@ reindexBtn.addEventListener('click', async () => {
     notice.textContent = '(인덱싱 오류)';
   } finally {
     reindexBtn.disabled = false;
+  }
+});
+
+captureBtn.addEventListener('click', async () => {
+  captureBtn.disabled = true;
+  const notice = append('sys', '(대화에서 지식 추출 중...)');
+  try {
+    const res = await fetch('/api/capture', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      notice.textContent = '(지식 추출 오류: ' + data.error + ' — 다시 시도하세요)';
+      return;
+    }
+    notice.textContent =
+      '(추출 ' + data.extracted + '건 → 저장 ' + data.saved.length + '건, 기존 지식 ' + data.skipped.length + '건)';
+  } catch {
+    notice.textContent = '(지식 추출 오류 — 다시 시도하세요)';
+  } finally {
+    captureBtn.disabled = false;
   }
 });
 

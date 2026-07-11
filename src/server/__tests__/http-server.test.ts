@@ -13,8 +13,10 @@ class FakeLlmClient implements LlmClient {
   delayMs = 0;
   fail = false;
 
+  chatResult = '요약';
+
   async chat(_messages: ChatMessage[], _options?: ChatOptions): Promise<string> {
-    return '요약';
+    return this.chatResult;
   }
 
   async *chatStream(
@@ -151,5 +153,32 @@ describe('createChatServer', () => {
     expect(ok.status).toBe(200);
     expect(await ok.text()).toBe('<h1>ui</h1>');
     expect((await fetch(`${baseUrl}/none`)).status).toBe(404);
+  });
+
+  it('POST /api/capture가 새 지식을 저장하고 결과를 반환한다 (정상)', async () => {
+    await (await postChat('질문')).text(); // 히스토리 생성
+    fake.chatResult =
+      '[{"title":"캡처 지식","category":"fact","content":"새 내용"}]';
+
+    const res = await fetch(`${baseUrl}/api/capture`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      extracted: number;
+      saved: string[];
+      skipped: string[];
+    };
+    expect(data.extracted).toBe(1);
+    expect(data.saved).toHaveLength(1);
+    expect(data.saved.at(0)).toContain(join('captured', 'fact'));
+  });
+
+  it('추출 출력이 불량이면 500을 반환하고 서버는 살아있다 (에러)', async () => {
+    await (await postChat('질문')).text();
+    fake.chatResult = '지식 없음';
+
+    const res = await fetch(`${baseUrl}/api/capture`, { method: 'POST' });
+    expect(res.status).toBe(500);
+
+    expect((await fetch(`${baseUrl}/api/history`)).status).toBe(200);
   });
 });

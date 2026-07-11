@@ -120,6 +120,11 @@ export function createChatServer(config: ChatServerConfig): Server {
       sendJson(res, 200, { chunks });
       return;
     }
+    if (route === 'POST /api/capture') {
+      const result = await app.captureKnowledge(new Date().toISOString());
+      sendJson(res, 200, result);
+      return;
+    }
     if (route === 'POST /api/chat') {
       await handleChat(req, res);
       return;
