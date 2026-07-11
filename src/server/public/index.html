@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>chatbot-engine</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; background: #111; color: #eee; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
+  h1 { font-size: 16px; margin: 0 0 8px; display: flex; justify-content: space-between; align-items: center; }
+  h1 .actions { display: flex; gap: 6px; }
+  #log { flex: 1; overflow-y: auto; border: 1px solid #333; border-radius: 8px; padding: 12px; }
+  .msg { margin: 8px 0; white-space: pre-wrap; line-height: 1.5; }
+  .user { color: #8ab4ff; }
+  .bot { color: #eee; }
+  .sys { color: #888; font-size: 12px; }
+  form { display: flex; gap: 8px; margin-top: 8px; }
+  input[type=text] { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; }
+  button { padding: 8px 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: #eee; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+</style>
+</head>
+<body>
+<h1>chatbot-engine
+  <span class="actions">
+    <button id="reindex" type="button">재인덱싱</button>
+    <button id="clear" type="button">초기화</button>
+  </span>
+</h1>
+<div id="log"></div>
+<form id="form">
+  <input id="input" type="text" placeholder="메시지를 입력하세요" autocomplete="off">
+  <button id="send" type="submit">전송</button>
+</form>
+<script>
+const log = document.getElementById('log');
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const clearBtn = document.getElementById('clear');
+const reindexBtn = document.getElementById('reindex');
+
+function append(cls, text) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + cls;
+  el.textContent = text;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  return el;
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/history');
+    const data = await res.json();
+    for (const m of data.history) {
+      append(m.role === 'user' ? 'user' : 'bot', (m.role === 'user' ? '나: ' : '') + m.content);
+    }
+  } catch {
+    append('sys', '(히스토리 로드 실패)');
+  }
+}
+
+function handleFrame(frame, botEl) {
+  let event = 'message';
+  let data = '';
+  for (const line of frame.split('\n')) {
+    if (line.startsWith('event: ')) event = line.slice(7);
+    else if (line.startsWith('data: ')) data += line.slice(6);
+  }
+  if (!data) return;
+  if (event === 'message') {
+    botEl.textContent += JSON.parse(data).piece;
+    log.scrollTop = log.scrollHeight;
+  } else if (event === 'error') {
+    botEl.textContent += '\n오류: ' + JSON.parse(data).error + ' — 다시 시도하세요.';
+  }
+}
+
+async function send(message) {
+  append('user', '나: ' + message);
+  const botEl = append('bot', '');
+  sendBtn.disabled = true;
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
+      botEl.textContent = '오류: ' + err.error;
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx = buffer.indexOf('\n\n');
+      while (idx >= 0) {
+        handleFrame(buffer.slice(0, idx), botEl);
+        buffer = buffer.slice(idx + 2);
+        idx = buffer.indexOf('\n\n');
+      }
+    }
+  } catch (err) {
+    botEl.textContent += '\n(연결 오류: ' + err.message + ')';
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const message = input.value.trim();
+  if (!message || sendBtn.disabled) return;
+  input.value = '';
+  send(message);
+});
+
+clearBtn.addEventListener('click', async () => {
+  await fetch('/api/clear', { method: 'POST' });
+  log.replaceChildren();
+  append('sys', '(히스토리를 초기화했습니다)');
+});
+
+reindexBtn.addEventListener('click', async () => {
+  reindexBtn.disabled = true;
+  const notice = append('sys', '(인덱싱 중...)');
+  try {
+    const res = await fetch('/api/index', { method: 'POST' });
+    const data = await res.json();
+    notice.textContent = '(인덱스 구축 완료: ' + data.chunks + '청크)';
+  } catch {
+    notice.textContent = '(인덱싱 오류)';
+  } finally {
+    reindexBtn.disabled = false;
+  }
+});
+
+loadHistory();
+input.focus();
+</script>
+</body>
+</html>
