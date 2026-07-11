@@ -29,5 +29,5 @@ This repository uses OpenWiki for recurring code documentation. Start with `open
 The scheduled OpenWiki GitHub Actions workflow refreshes the repository wiki. Do not hand-edit generated OpenWiki pages unless explicitly asked; prefer updating source code/docs and letting OpenWiki regenerate.
 
 <!-- OPENWIKI:END -->
-- wiki 갱신: `OPENWIKI_PROVIDER=openai-compatible OPENAI_COMPATIBLE_BASE_URL=http://localhost:11434/v1 OPENAI_COMPATIBLE_API_KEY=ollama OPENWIKI_MODEL_ID=qwen3:8b npx -y openwiki code --update` → `npm run sync-wiki` (별도 레포 ../chatbot-engine-wiki로 반영)
-- 챗봇의 wiki 습득: `RAG_DOCS_DIR=../chatbot-engine-wiki CHATBOT_INDEX_FILE=.chatbot/wiki-index.json npm run dev` 후 `/index`
+- wiki 갱신: `OPENWIKI_PROVIDER=openai-compatible OPENAI_COMPATIBLE_BASE_URL=http://localhost:11434/v1 OPENAI_COMPATIBLE_API_KEY=ollama OPENWIKI_MODEL_ID=qwen3:8b npx -y openwiki code --update` → `npm run sync-wiki` (모노레포형 wiki `../dev-wiki/chatbot-engine/`로 반영, env `WIKI_REPO`/`WIKI_SUBDIR`)
+- 챗봇의 wiki 습득: `RAG_DOCS_DIR=../dev-wiki CHATBOT_INDEX_FILE=.chatbot/wiki-index.json npm run dev` 후 `/index` (전 프로젝트 습득 — 단일 프로젝트만은 `RAG_DOCS_DIR=../dev-wiki/chatbot-engine`)
