@@ -1,4 +1,8 @@
+import { join } from 'node:path';
 import { ChatSession } from '../chat/session.js';
+import { extractKnowledge } from '../knowledge/extractor.js';
+import { judgeNovelty } from '../knowledge/novelty.js';
+import { saveCaptured } from '../knowledge/capture-store.js';
 import type { Embedder, LlmClient } from '../llm/types.js';
 import { OllamaClient } from '../llm/ollama-client.js';
 import { OllamaEmbedder } from '../llm/ollama-embedder.js';
@@ -15,6 +19,15 @@ export interface AppOverrides {
   embedder?: Embedder;
 }
 
+export interface CaptureResult {
+  /** 추출된 후보 수 */
+  extracted: number;
+  /** 저장된 파일 경로들 */
+  saved: string[];
+  /** 기존 지식으로 판정되어 스킵된 제목들 */
+  skipped: string[];
+}
+
 export interface App {
   session: ChatSession;
   store: SessionStore;
@@ -26,6 +39,8 @@ export interface App {
   startupNotices: string[];
   /** docsDir를 재인덱싱하고 retriever를 교체. 청크 수 반환 */
   rebuildIndex(createdAt: string): Promise<number>;
+  /** 대화에서 새 지식을 추출·novelty 판정·저장하고, 저장분이 있으면 재인덱싱 */
+  captureKnowledge(capturedAt: string): Promise<CaptureResult>;
 }
 
 const SYSTEM_PROMPT =
@@ -58,10 +73,13 @@ export async function createApp(
   const docsDir = env['RAG_DOCS_DIR'] ?? DEFAULT_DOCS_DIR;
   const startupNotices: string[] = [];
 
+  let currentIndex: VectorIndex | null = null;
   let retriever: Retriever | null = null;
+
   const loadedIndex = await VectorIndex.load(indexFile);
   if (loadedIndex !== null) {
     if (loadedIndex.model === embedderModel) {
+      currentIndex = loadedIndex;
       retriever = new Retriever(embedder, loadedIndex);
       startupNotices.push(
         `RAG 인덱스 로드: ${loadedIndex.size}청크, 생성 ${loadedIndex.createdAt}`,
@@ -89,6 +107,17 @@ export async function createApp(
     );
   }
 
+  async function rebuild(createdAt: string): Promise<number> {
+    const built = await buildIndex(embedder, docsDir, {
+      model: embedderModel,
+      createdAt,
+    });
+    await built.save(indexFile);
+    currentIndex = built;
+    retriever = new Retriever(embedder, built);
+    return built.size;
+  }
+
   return {
     session,
     store,
@@ -96,14 +125,24 @@ export async function createApp(
     indexFile,
     modelName,
     startupNotices,
-    async rebuildIndex(createdAt: string): Promise<number> {
-      const built = await buildIndex(embedder, docsDir, {
-        model: embedderModel,
-        createdAt,
-      });
-      await built.save(indexFile);
-      retriever = new Retriever(embedder, built);
-      return built.size;
+    rebuildIndex: rebuild,
+    async captureKnowledge(capturedAt: string): Promise<CaptureResult> {
+      const candidates = await extractKnowledge(client, session.getHistory());
+      const verdicts = await judgeNovelty(embedder, currentIndex, candidates);
+      const captureDir = join(docsDir, 'captured');
+      const saved: string[] = [];
+      const skipped: string[] = [];
+      for (const verdict of verdicts) {
+        if (verdict.isNew) {
+          saved.push(await saveCaptured(captureDir, verdict, capturedAt));
+        } else {
+          skipped.push(verdict.candidate.title);
+        }
+      }
+      if (saved.length > 0) {
+        await rebuild(capturedAt);
+      }
+      return { extracted: candidates.length, saved, skipped };
     },
   };
 }
