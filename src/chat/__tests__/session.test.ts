@@ -168,4 +168,20 @@ describe('ChatSession', () => {
 
     expect(streamCalls.at(1)).toEqual([{ role: 'user', content: '새 질문' }]);
   });
+
+  it('restore()로 복원한 히스토리가 다음 send에 포함된다 (정상)', async () => {
+    const fake = new FakeLlmClient();
+    fake.pieces = ['ok'];
+    const session = new ChatSession(fake);
+    const saved: ChatMessage[] = [
+      { role: 'user', content: '이전 질문' },
+      { role: 'assistant', content: '이전 답변' },
+    ];
+
+    session.restore(saved);
+    expect(session.getHistory()).toEqual(saved);
+
+    await collect(session.send('새 질문'));
+    expect(fake.calls.at(0)).toEqual([...saved, { role: 'user', content: '새 질문' }]);
+  });
 });

@@ -42,6 +42,12 @@ export class ChatSession {
     this.history.push({ role: 'assistant', content: assistantContent });
   }
 
+  /** 저장된 히스토리로 교체하고 요약 캐시를 리셋한다 (세션 복원용) */
+  restore(history: readonly ChatMessage[]): void {
+    this.history = history.map((m) => ({ ...m }));
+    this.contextManager.reset();
+  }
+
   getHistory(): readonly ChatMessage[] {
     return this.history;
   }
