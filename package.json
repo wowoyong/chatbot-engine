@@ -10,6 +10,7 @@
     "dev": "tsx src/cli/main.ts",
     "serve": "tsx src/server/main.ts",
     "build": "tsc -p tsconfig.build.json && mkdir -p dist/server/public && cp src/server/public/index.html dist/server/public/",
+    "eval": "tsx eval/run.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
