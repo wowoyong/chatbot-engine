@@ -1,6 +1,7 @@
 # search — Implementation Plan Index (Track A)
 
 Baseline: main@55c937e (clean)
+구현 완료: `main@2d35d8f` (Phase 0: 965fcb6 / Phase 1: cc83022 / Phase 2: 2d35d8f — 테스트 133 passed, eval 하이브리드 개선 입증)
 
 ## 개요
 
