@@ -1,6 +1,7 @@
 # gguf — Implementation Plan Index (Segment 1: GGUF 로더)
 
 Baseline: main@4618368 (clean)
+구현 완료: `main@c486e1d` (Phase 0·1 — 테스트 157, 실파일 통합 AC3/AC4 통과)
 
 ## 개요
 
