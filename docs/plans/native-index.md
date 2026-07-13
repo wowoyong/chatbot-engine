@@ -1,6 +1,7 @@
 # native — Index (Segment 4: 샘플러 + LlmClient 어댑터)
 
 Baseline: main@c486e1d (clean)
+구현 완료: `main@3593f0d` (★AC5: 자체 엔진 생성 'France 수도'→'巴黎'. 테스트 179)
 
 ## 개요
 
