@@ -70,6 +70,11 @@ export class VectorIndex {
     return this.chunks.length;
   }
 
+  /** 인덱싱된 청크 전체 (읽기 전용 복사본) — BM25 등 대체 검색용 */
+  allChunks(): IndexedChunk[] {
+    return this.chunks.map((c) => ({ ...c }));
+  }
+
   /** 질의 벡터와 유사한 청크를 점수 내림차순 최대 topK개 반환 (minScore 미만 제외) */
   search(
     queryEmbedding: readonly number[],
