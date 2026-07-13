@@ -34,9 +34,9 @@
 5. **맥미니 self-hosted runner 등록** — 커밋마다 로컬 Ollama(8b)로 wiki 자동 갱신 → 클라우드 비용 0의 완전 자동 문서화 루프
 6. **launchd 상시 구동** — `HOST=0.0.0.0 npm run serve` 서비스화 + 재부팅 자동 시작. **런타임 qwen3:8b 고정** (16GB 제약)
 
-## Track D — 캡처 품질 (LangChain 학습의 역이식)
+## Track D — 캡처 품질 ✅ 완료 (2026-07-13)
 
-**지금 가능** · 규모: Small~Medium · 전제조건: 없음
+**완료** — Ollama format 구조화 출력(LC withStructuredOutput의 밑바닥 대응물), 프롬프트 노이즈 필터, /captured 목록. 삭제는 rm(YAGNI).
 
 | 항목 | 내용 |
 |------|------|
