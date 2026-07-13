@@ -139,6 +139,11 @@ export function createChatServer(config: ChatServerConfig): Server {
       sendJson(res, 200, result);
       return;
     }
+    if (route === 'GET /api/captured') {
+      const items = await app.listCaptured();
+      sendJson(res, 200, { items });
+      return;
+    }
     if (route === 'POST /api/chat') {
       await handleChat(req, res);
       return;

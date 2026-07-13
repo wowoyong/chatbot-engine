@@ -80,4 +80,29 @@ describe('extractKnowledge', () => {
     }
     expect(fake.calls.at(0)?.at(1)?.content).toContain('파란색이 좋아');
   });
+
+  it('object-wrapper {items:[...]} 형식을 파싱한다 (정상)', () => {
+    const raw = '{"items":[{"title":"t","category":"fact","content":"c"}]}';
+    expect(parseCandidates(raw)).toEqual([
+      { title: 't', category: 'fact', content: 'c' },
+    ]);
+  });
+
+  it('extractKnowledge가 format 스키마를 전달한다 (정상)', async () => {
+    let capturedOptions: unknown;
+    const client = {
+      async chat(_m: ChatMessage[], options?: unknown): Promise<string> {
+        capturedOptions = options;
+        return '{"items":[]}';
+      },
+      async *chatStream(): AsyncGenerator<string> {
+        yield 'ok';
+      },
+    };
+    await extractKnowledge(client as never, [
+      { role: 'user', content: 'x' },
+      { role: 'assistant', content: 'y' },
+    ]);
+    expect(capturedOptions).toHaveProperty('format');
+  });
 });

@@ -196,4 +196,11 @@ describe('createChatServer', () => {
     const text = await res.text();
     expect(text).not.toContain('event: sources');
   });
+
+  it('GET /api/captured가 목록을 반환한다 (정상)', async () => {
+    const res = await fetch(`${baseUrl}/api/captured`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { items: unknown[] };
+    expect(Array.isArray(data.items)).toBe(true);
+  });
 });

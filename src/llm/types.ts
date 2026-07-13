@@ -10,6 +10,8 @@ export interface ChatOptions {
   think?: boolean;
   /** 요청 타임아웃(ms). 기본 120_000 */
   timeoutMs?: number;
+  /** 구조화 출력 JSON 스키마 (Ollama format). 지정 시 응답이 스키마를 따름 */
+  format?: unknown;
 }
 
 export interface LlmClient {

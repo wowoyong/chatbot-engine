@@ -60,6 +60,7 @@ export class OllamaClient implements LlmClient {
           messages,
           stream: true,
           think: options.think ?? false,
+          ...(options.format !== undefined ? { format: options.format } : {}),
         }),
         signal: controller.signal,
       });

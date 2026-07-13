@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { NoveltyVerdict } from '../novelty.js';
-import { saveCaptured, slugify } from '../capture-store.js';
+import { listCaptured, saveCaptured, slugify } from '../capture-store.js';
 
 function verdict(title: string, maxScore = 0.123): NoveltyVerdict {
   return {
@@ -57,5 +57,16 @@ describe('saveCaptured', () => {
   it('디렉토리가 없어도 자동 생성된다 — writeFileAtomic 경유 (경계값)', async () => {
     const path = await saveCaptured(join(dir, 'deep'), verdict('중첩'), 't');
     expect(await readFile(path, 'utf8')).toContain('# 중첩');
+  });
+
+  it('listCaptured가 카테고리별 저장 지식을 제목과 함께 반환한다 (정상)', async () => {
+    await saveCaptured(dir, verdict('첫 지식'), 't');
+    const entries = await listCaptured(dir);
+    expect(entries).toHaveLength(1);
+    expect(entries.at(0)).toMatchObject({ title: '첫 지식', category: 'fact' });
+  });
+
+  it('디렉토리가 없으면 빈 배열 (경계값)', async () => {
+    expect(await listCaptured(join(dir, 'none'))).toEqual([]);
   });
 });

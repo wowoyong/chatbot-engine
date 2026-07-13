@@ -19,7 +19,7 @@ async function main(): Promise<void> {
   });
 
   stdout.write(
-    `chatbot-engine — ${app.modelName} (명령: /exit 종료, /clear 히스토리 초기화, /index RAG 인덱스 구축, /capture 지식 저장)\n`,
+    `chatbot-engine — ${app.modelName} (명령: /exit 종료, /clear 히스토리 초기화, /index RAG 인덱스 구축, /capture 지식 저장, /captured 목록)\n`,
   );
 
   while (true) {
@@ -68,6 +68,18 @@ async function main(): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         stdout.write(`지식 추출 오류: ${message} — 다시 시도하세요.\n`);
+      }
+      continue;
+    }
+    if (line === '/captured') {
+      const entries = await app.listCaptured();
+      if (entries.length === 0) {
+        stdout.write('(저장된 지식이 없습니다)\n');
+      } else {
+        stdout.write(`(저장된 지식 ${entries.length}건)\n`);
+        for (const e of entries) {
+          stdout.write(`  [${e.category}] ${e.title}\n`);
+        }
       }
       continue;
     }

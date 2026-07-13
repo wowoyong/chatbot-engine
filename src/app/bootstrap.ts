@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { ChatSession } from '../chat/session.js';
 import { extractKnowledge } from '../knowledge/extractor.js';
+import { listCaptured } from '../knowledge/capture-store.js';
 import { judgeNovelty } from '../knowledge/novelty.js';
 import { saveCaptured } from '../knowledge/capture-store.js';
 import type { Embedder, LlmClient } from '../llm/types.js';
@@ -41,6 +42,8 @@ export interface App {
   rebuildIndex(createdAt: string): Promise<number>;
   /** 대화에서 새 지식을 추출·novelty 판정·저장하고, 저장분이 있으면 재인덱싱 */
   captureKnowledge(capturedAt: string): Promise<CaptureResult>;
+  /** 저장된 지식 목록 (<docsDir>/captured) */
+  listCaptured(): Promise<import('../knowledge/capture-store.js').CapturedEntry[]>;
 }
 
 const SYSTEM_PROMPT =
@@ -143,6 +146,11 @@ export async function createApp(
         await rebuild(capturedAt);
       }
       return { extracted: candidates.length, saved, skipped };
+    },
+    listCaptured(): Promise<
+      import('../knowledge/capture-store.js').CapturedEntry[]
+    > {
+      return listCaptured(join(docsDir, 'captured'));
     },
   };
 }
