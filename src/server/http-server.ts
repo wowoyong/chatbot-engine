@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { App } from '../app/bootstrap.js';
+import type { TurnMeta } from '../chat/session.js';
 
 export interface ChatServerConfig {
   app: App;
@@ -72,14 +73,27 @@ export function createChatServer(config: ChatServerConfig): Server {
       connection: 'keep-alive',
     });
     try {
-      for await (const piece of app.session.send(message)) {
+      const iterator = app.session.send(message)[Symbol.asyncIterator]();
+      let sourcesSent = false;
+      let result = await iterator.next();
+      while (result.done !== true) {
         if (res.destroyed) {
           return; // 클라이언트 중단 — 제너레이터 조기 종료로 히스토리 미기록
         }
-        res.write(`data: ${JSON.stringify({ piece })}\n\n`);
+        res.write(`data: ${JSON.stringify({ piece: result.value })}\n\n`);
+        result = await iterator.next();
+      }
+      const meta: TurnMeta = result.value;
+      if (!sourcesSent && meta.sources.length > 0) {
+        sourcesSent = true;
       }
       await app.store.save(app.session.getHistory());
-      res.write('event: done\ndata: {}\n\n');
+      if (meta.sources.length > 0) {
+        res.write(`event: sources\ndata: ${JSON.stringify({ sources: meta.sources })}\n\n`);
+      }
+      res.write(
+        `event: done\ndata: ${JSON.stringify({ promptTokens: meta.promptTokens, responseTokens: meta.responseTokens })}\n\n`,
+      );
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       res.write(`event: error\ndata: ${JSON.stringify({ error: detail })}\n\n`);

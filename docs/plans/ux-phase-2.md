@@ -1,3 +1,44 @@
+# Phase 2: 웹 UI — 출처·토큰·중단·마크다운
+
+@fidelity-check tokens: renderMarkdown, AbortController, event === 'sources', escapeHtml
+
+## 코드 예시 적용 규칙
+
+1. HTML 내 JS는 외부/모델 텍스트를 반드시 escape 후 사용 (마크다운 렌더는 escape → 화이트리스트 변환 → innerHTML)
+2. 런타임 의존성 추가 금지 — 마크다운 렌더러 자작
+3. `any` 없음 (브라우저 JS)
+
+## 전제 조건
+
+Phase 1 SSE 계약 (그대로 복사):
+
+```
+data: {"piece": string}                              # content 조각
+event: sources\ndata: {"sources": [{source,heading}]} # 관련 문서 (content 후, 있을 때)
+event: done\ndata: {"promptTokens"?, "responseTokens"?} # 완료 + 토큰
+event: error\ndata: {"error": string}                 # 실패
+```
+
+## 현재 상태
+
+`src/server/public/index.html`은 답변을 `textContent`로만 렌더(마크다운 미적용), sources/usage 이벤트 미처리, 중단 불가. 전체 교체.
+
+## Testability Review
+
+| 의존성 | 주입 가능 | mock/stub | 대안 |
+|--------|----------|-----------|------|
+| 브라우저 DOM/fetch | ✗ | ✗ | 정적 UI — 서버 테스트(Phase 1)가 wire 커버, 브라우저 동작은 수동 AC |
+| renderMarkdown (순수) | ✓ | ✓ | grep으로 escape 우선 검증 |
+| SSE 파싱 | ✗ | ✗ | Phase 1 서버 테스트가 프레임 형식 고정 |
+
+## Step 1: index.html 전체 교체 (`src/server/public/index.html` — modify)
+
+### Context
+
+마크다운 렌더러(escape 우선 → 코드블록/인라인코드/헤딩/볼드/이탤릭/링크/목록), AbortController 기반 중단(전송 중 버튼이 "중단"), sources 접이식 표시, 토큰 푸터. 스트리밍 중엔 원문 textContent(빠름), done 시 마크다운 렌더로 교체.
+
+### Code
+```html
 <!doctype html>
 <html lang="ko">
 <head>
@@ -257,3 +298,76 @@ input.focus();
 </script>
 </body>
 </html>
+```
+
+### Anchor
+
+파일 전체 교체.
+
+### Verify
+```bash
+# 1. 빌드
+npm run build 2>&1 | tail -2 && test -f dist/server/public/index.html && echo "OK: 빌드 복사"
+  # 기대: "OK: 빌드 복사"
+# 2. 테스트
+npm test 2>&1 | tail -3
+  # 기대: 139 passed (UI 무영향)
+# 3. 의미 검증
+grep -c "escapeHtml(blocks\|escapeHtml(text\|escapeHtml(raw" src/server/public/index.html && grep -c "AbortController\|event === 'sources'" src/server/public/index.html
+  # 기대: escape가 renderMarkdown에서 입력에 먼저 적용됨(≥1), AbortController+sources 처리(≥2)
+```
+
+### 동반 변경 (Side Effects)
+
+- CLAUDE.md에 웹 UI 기능 1줄 (최종 검증)
+- build html 복사 스텝은 Segment 5에서 이미 존재
+
+### Do Not Touch
+
+`src/server/http-server.ts`, `src/server/main.ts`.
+
+## 실행 순서
+
+Step 1 (단일).
+
+## 입출력 예제
+
+| 조작 | 동작 |
+|------|------|
+| 답변에 코드블록 | 마크다운 렌더 (pre/code) |
+| 관련 문서 있음 | "참조 문서 N건" 접이식 |
+| 응답 완료 | "토큰: prompt X / response Y" |
+| 전송 중 버튼 클릭 | AbortController.abort → "(중단됨)" |
+| `<script>` 포함 답변 | escape되어 텍스트로 표시 (XSS 없음) |
+
+## 이 Phase 완료 후 노출 인터페이스
+
+```
+웹 UI: 마크다운 렌더 + 출처 접이식 + 토큰 표시 + 중단 버튼
+(신규 export 없음 — 정적 UI)
+```
+
+## Definition of Done
+
+- [ ] DoD-21: Step 통과 + Verify ✓
+- [ ] DoD-22: typecheck exit 0 (UI는 typecheck 무관하나 전체 통과)
+- [ ] DoD-23: `npm test` 139 passed
+- [ ] DoD-24: UI 테스트 면제 — 얇은 표현 레이어, wire는 Phase 1 서버 테스트, 렌더 안전성은 grep(escape 우선) + 수동 AC
+- [ ] DoD-25: CLAUDE.md 갱신
+- [ ] DoD-26: 수동 AC 통과
+
+## Observability plan
+
+N/A — 브라우저 개발자도구.
+
+## 최종 검증
+
+```bash
+npm run typecheck && npm test && npm run build && echo "PHASE 2 PASS (자동)"
+
+# CLAUDE.md 컨벤션 섹션에 1줄 추가:
+# - 웹 UI: 마크다운 렌더 + 출처/토큰 표시 + 응답 중단(전송 버튼 재클릭)
+
+# 수동 AC (Ollama 실행, 메인 세션 수행)
+# 브라우저에서 코드블록 포함 답변 렌더, 참조 문서/토큰 표시, 중단 버튼 확인
+```

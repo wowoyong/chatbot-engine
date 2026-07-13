@@ -22,7 +22,7 @@ class FakeLlmClient implements LlmClient {
   async *chatStream(
     _messages: ChatMessage[],
     _options?: ChatOptions,
-  ): AsyncGenerator<string> {
+  ): AsyncGenerator<string, { promptTokens?: number; responseTokens?: number }> {
     for (const piece of this.pieces) {
       if (this.delayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, this.delayMs));
@@ -32,6 +32,7 @@ class FakeLlmClient implements LlmClient {
       }
       yield piece;
     }
+    return { promptTokens: 11, responseTokens: 22 };
   }
 }
 
@@ -180,5 +181,19 @@ describe('createChatServer', () => {
     expect(res.status).toBe(500);
 
     expect((await fetch(`${baseUrl}/api/history`)).status).toBe(200);
+  });
+
+  it('done 이벤트에 토큰 usage를 담는다 (정상)', async () => {
+    const res = await postChat('질문');
+    const text = await res.text();
+    expect(text).toContain('event: done');
+    expect(text).toContain('"promptTokens":11');
+    expect(text).toContain('"responseTokens":22');
+  });
+
+  it('retriever가 없으면 sources 이벤트를 보내지 않는다 (경계값)', async () => {
+    const res = await postChat('질문');
+    const text = await res.text();
+    expect(text).not.toContain('event: sources');
   });
 });

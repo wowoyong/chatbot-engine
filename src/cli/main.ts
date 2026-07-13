@@ -2,6 +2,7 @@ import * as readline from 'node:readline/promises';
 import { env, exit, stdin, stdout } from 'node:process';
 import { createApp } from '../app/bootstrap.js';
 import { LlmConnectionError } from '../llm/errors.js';
+import type { TurnMeta } from '../chat/session.js';
 
 async function main(): Promise<void> {
   const app = await createApp(env);
@@ -73,10 +74,25 @@ async function main(): Promise<void> {
 
     stdout.write('bot> ');
     try {
-      for await (const piece of app.session.send(line)) {
-        stdout.write(piece);
+      const iterator = app.session.send(line)[Symbol.asyncIterator]();
+      let result = await iterator.next();
+      while (result.done !== true) {
+        stdout.write(result.value);
+        result = await iterator.next();
       }
       stdout.write('\n');
+      const meta: TurnMeta = result.value;
+      if (meta.sources.length > 0) {
+        const labels = meta.sources
+          .map((s) => (s.heading.length > 0 ? `${s.source} > ${s.heading}` : s.source))
+          .join(', ');
+        stdout.write(`  출처: ${labels}\n`);
+      }
+      if (meta.responseTokens !== undefined) {
+        stdout.write(
+          `  토큰: prompt ${meta.promptTokens ?? '?'} / response ${meta.responseTokens}\n`,
+        );
+      }
       await app.store.save(app.session.getHistory());
     } catch (err) {
       if (err instanceof LlmConnectionError) {
