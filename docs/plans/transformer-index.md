@@ -1,6 +1,7 @@
 # transformer — Index (Segment 3: 트랜스포머 forward)
 
 Baseline: main@c486e1d (clean)
+구현 완료: `main@116237c` (Phase 0·1 — 테스트 174, ★Ollama 교차검증 AC4 정확 일치: Paris/there)
 
 ## 개요
 
