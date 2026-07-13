@@ -7,6 +7,10 @@ import { saveCaptured } from '../knowledge/capture-store.js';
 import type { Embedder, LlmClient } from '../llm/types.js';
 import { OllamaClient } from '../llm/ollama-client.js';
 import { OllamaEmbedder } from '../llm/ollama-embedder.js';
+import { GgufModel } from '../gguf/model.js';
+import { BpeTokenizer } from '../tokenizer/bpe.js';
+import { TransformerModel } from '../transformer/model.js';
+import { NativeLlmClient } from '../native/native-client.js';
 import { buildIndex } from '../rag/indexer.js';
 import { HybridRetriever } from '../rag/hybrid-retriever.js';
 import { VectorIndex } from '../rag/vector-index.js';
@@ -56,18 +60,34 @@ export async function createApp(
   env: AppEnv,
   overrides: AppOverrides = {},
 ): Promise<App> {
-  const client =
-    overrides.client ??
-    new OllamaClient({
+  let client: LlmClient;
+  let modelLabel: string;
+  if (overrides.client !== undefined) {
+    client = overrides.client;
+    modelLabel = 'fake-llm';
+  } else if (env['LLM_ENGINE'] === 'native' && env['NATIVE_GGUF_FILE'] !== undefined) {
+    const ggufModel = await GgufModel.load(env['NATIVE_GGUF_FILE']);
+    const tokenizer = new BpeTokenizer({
+      tokens: ggufModel.metadataArray('tokenizer.ggml.tokens') as string[],
+      merges: ggufModel.metadataArray('tokenizer.ggml.merges') as string[],
+      tokenType: ggufModel.metadataArray('tokenizer.ggml.token_type') as number[],
+    });
+    const transformer = new TransformerModel(ggufModel);
+    client = new NativeLlmClient(transformer, tokenizer, { systemPrompt: SYSTEM_PROMPT });
+    modelLabel = 'native (qwen2.5-0.5b)';
+  } else {
+    const ollama = new OllamaClient({
       baseUrl: env['OLLAMA_BASE_URL'],
       model: env['OLLAMA_MODEL'],
     });
+    client = ollama;
+    modelLabel = ollama.model;
+  }
   const embedder =
     overrides.embedder ?? new OllamaEmbedder({ baseUrl: env['OLLAMA_BASE_URL'] });
   const embedderModel =
     embedder instanceof OllamaEmbedder ? embedder.model : 'fake-embedder';
-  const modelName =
-    client instanceof OllamaClient ? client.model : 'fake-llm';
+  const modelName = modelLabel;
 
   const store = new SessionStore(
     env['CHATBOT_SESSION_FILE'] ?? DEFAULT_SESSION_FILE,

@@ -37,6 +37,15 @@ export class GgufModel {
     return GgufModel.fromBuffer(buffer);
   }
 
+  /** 메타데이터의 배열 값 (tokenizer.ggml.tokens 등) */
+  metadataArray(key: string): unknown[] {
+    const v = this.gguf.metadata.get(key);
+    if (!Array.isArray(v)) {
+      throw new Error(`메타데이터가 배열이 아님: ${key}`);
+    }
+    return v;
+  }
+
   get tensorNames(): string[] {
     return [...this.gguf.tensors.keys()];
   }

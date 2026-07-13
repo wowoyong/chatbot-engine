@@ -7,11 +7,10 @@ const FILE = env['GGUF_TEST_FILE'];
 
 async function realTokenizer(): Promise<BpeTokenizer> {
   const model = await GgufModel.load(FILE as string);
-  const meta = (model as unknown as { gguf: { metadata: Map<string, unknown> } }).gguf.metadata;
   return new BpeTokenizer({
-    tokens: meta.get('tokenizer.ggml.tokens') as string[],
-    merges: meta.get('tokenizer.ggml.merges') as string[],
-    tokenType: meta.get('tokenizer.ggml.token_type') as number[],
+    tokens: model.metadataArray('tokenizer.ggml.tokens') as string[],
+    merges: model.metadataArray('tokenizer.ggml.merges') as string[],
+    tokenType: model.metadataArray('tokenizer.ggml.token_type') as number[],
   });
 }
 
