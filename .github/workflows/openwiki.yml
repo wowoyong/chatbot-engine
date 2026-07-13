@@ -1,0 +1,26 @@
+name: OpenWiki Update
+
+# 로컬 Ollama(qwen3:8b)로 wiki를 자동 갱신한다.
+# 전제: 맥미니에 self-hosted 러너 등록 + Ollama 상시 구동 (README/ROADMAP Track C 참조).
+# 러너 등록 전까지는 workflow_dispatch(수동)로만 트리거되며 실행되지 않는다 — 안전하게 휴면.
+on:
+  workflow_dispatch:
+  # 러너 등록 후 아래 주석을 해제하면 매일 자동 갱신:
+  # schedule:
+  #   - cron: '0 18 * * *'  # UTC 18:00 = KST 03:00
+
+jobs:
+  update-wiki:
+    runs-on: [self-hosted, macos, ollama]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate wiki with local Ollama
+        env:
+          OPENWIKI_PROVIDER: openai-compatible
+          OPENAI_COMPATIBLE_BASE_URL: http://localhost:11434/v1
+          OPENAI_COMPATIBLE_API_KEY: ollama
+          OPENWIKI_MODEL_ID: qwen3:8b
+        run: npx -y openwiki code --update
+      - name: Sync to dev-wiki repo
+        run: npm run sync-wiki
+        # WIKI_REPO 기본값 ../dev-wiki — 러너 작업공간에 dev-wiki가 체크아웃되어 있어야 함
