@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { basename, dirname, join } from 'node:path';
 import { OllamaEmbedder } from '../src/llm/ollama-embedder.js';
 import { buildIndex } from '../src/rag/indexer.js';
+import { HybridRetriever } from '../src/rag/hybrid-retriever.js';
 import type { VectorIndex } from '../src/rag/vector-index.js';
 import { GOLDEN_QUESTIONS } from './golden.js';
 import { summarize } from './metric.js';
@@ -38,6 +39,14 @@ export function vectorSearch(embedder: OllamaEmbedder, index: VectorIndex): Sear
   };
 }
 
+/** 하이브리드 검색기: RRF 결합 결과의 source 순위 반환 (basename 정규화 — golden과 매칭) */
+export function hybridSearch(retriever: HybridRetriever): SearchFn {
+  return async (query: string, _topK: number) => {
+    const { hits } = await retriever.retrieve(query);
+    return hits.map((h) => toSourceName(h.chunk.source));
+  };
+}
+
 async function main(): Promise<void> {
   const corpusDir = join(dirname(fileURLToPath(import.meta.url)), 'corpus');
   const embedder = new OllamaEmbedder({ baseUrl: env['OLLAMA_BASE_URL'] });
@@ -47,6 +56,8 @@ async function main(): Promise<void> {
     createdAt: 'eval',
   });
   await runEval('vector', vectorSearch(embedder, index));
+  const hybrid = new HybridRetriever(embedder, index, { topK: 10, candidateDepth: 20 });
+  await runEval('hybrid', hybridSearch(hybrid));
 }
 
 main().catch((err: unknown) => {

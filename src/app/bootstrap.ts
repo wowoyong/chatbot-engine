@@ -7,7 +7,7 @@ import type { Embedder, LlmClient } from '../llm/types.js';
 import { OllamaClient } from '../llm/ollama-client.js';
 import { OllamaEmbedder } from '../llm/ollama-embedder.js';
 import { buildIndex } from '../rag/indexer.js';
-import { Retriever } from '../rag/retriever.js';
+import { HybridRetriever } from '../rag/hybrid-retriever.js';
 import { VectorIndex } from '../rag/vector-index.js';
 import { SessionStore } from '../store/session-store.js';
 
@@ -74,13 +74,13 @@ export async function createApp(
   const startupNotices: string[] = [];
 
   let currentIndex: VectorIndex | null = null;
-  let retriever: Retriever | null = null;
+  let retriever: HybridRetriever | null = null;
 
   const loadedIndex = await VectorIndex.load(indexFile);
   if (loadedIndex !== null) {
     if (loadedIndex.model === embedderModel) {
       currentIndex = loadedIndex;
-      retriever = new Retriever(embedder, loadedIndex);
+      retriever = new HybridRetriever(embedder, loadedIndex);
       startupNotices.push(
         `RAG 인덱스 로드: ${loadedIndex.size}청크, 생성 ${loadedIndex.createdAt}`,
       );
@@ -114,7 +114,7 @@ export async function createApp(
     });
     await built.save(indexFile);
     currentIndex = built;
-    retriever = new Retriever(embedder, built);
+    retriever = new HybridRetriever(embedder, built);
     return built.size;
   }
 
