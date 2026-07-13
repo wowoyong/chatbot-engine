@@ -3,8 +3,9 @@
 로컬 LLM(Qwen3 8B / Ollama) 기반 대화형 챗봇 엔진을 **프레임워크 없이 밑바닥부터** 구현한 학습 프로젝트. 스트리밍 대화·컨텍스트 메모리 관리·RAG·대화형 지식 축적을 순수 TypeScript로 만들고, 같은 기능을 LangChain으로 재구현해 비교했다.
 
 - **런타임 의존성 0개** — `fetch`·스트림·`node:http` 등 Node 20 표준 라이브러리만 사용 (개발 의존성은 TypeScript·Vitest·tsx뿐)
-- **114개 단위 테스트** — LLM 호출을 mock 처리해 Ollama 없이 CI에서 실행 가능
+- **179개 단위 테스트** — LLM 호출을 mock 처리해 Ollama 없이 CI에서 실행 가능
 - **엔진 / 인터페이스 분리** — 하나의 코어 엔진을 CLI와 웹 서버가 공유
+- **자체 LLM 추론 엔진** — Qwen2.5-0.5B의 트랜스포머 forward pass(GGUF 로더·BPE 토크나이저·GQA 어텐션·SwiGLU)를 순수 TS로 밑바닥 구현. Ollama와 argmax 일치 검증 (`src/gguf`·`src/tokenizer`·`src/transformer`·`src/native`)
 
 > 회사 업무와 무관한 개인 학습 프로젝트입니다. LLM 애플리케이션의 내부 동작(스트리밍 파싱, 컨텍스트 예산, 임베딩 검색)을 프레임워크에 감추지 않고 직접 구현해 이해하는 것이 목표입니다.
 

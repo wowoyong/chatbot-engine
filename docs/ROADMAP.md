@@ -45,6 +45,14 @@
 | D-2 추출 프롬프트 개선 | "어시스턴트 발화만으로 성립하는 항목 제외" 등 노이즈 필터 — A-1 평가 세트 방식으로 추출 품질도 골든 케이스 측정 |
 | D-3 캡처 관리 UX | `/captured` 목록·삭제 명령 + 웹 노출 — 쌓인 지식의 큐레이션 진입점 |
 
+## 자체 LLM 추론 엔진 ✅ 완료 (2026-07-13)
+
+**완료** — Qwen2.5-0.5B forward pass를 순수 TS로 밑바닥 구현 (설계 `docs/design/2026-07-13-native-llm-inference-design.md`). 4 Segment:
+- GGUF 로더 (F16 dequant, 실파일 하이퍼파라미터 검증)
+- byte-level BPE 토크나이저 (한글 왕복, 특수토큰)
+- 트랜스포머 forward (GQA 어텐션+KV캐시, SwiGLU, tied logits) — **Ollama argmax 정확 일치**(Paris/there)
+- 샘플러 + ChatML + NativeLlmClient (env `LLM_ENGINE=native`) — 실생성 'France 수도'→'巴黎'
+
 ## Track E — 백로그 (조건 성숙 시)
 
 - **멀티세션** — 웹 탭/주제별 스레드 (LangGraph thread_id 개념의 밑바닥 이식). 단일 사용자 불편이 실제로 생기면
