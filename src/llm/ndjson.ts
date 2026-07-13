@@ -1,14 +1,19 @@
 import { LlmResponseError } from './errors.js';
 
+export interface NdjsonStats {
+  promptTokens?: number;
+  responseTokens?: number;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-/**
- * ndjson 한 라인에서 content 조각을 추출한다.
- * - error 라인이면 LlmResponseError(0) throw
- * - content 없는 라인(done 마커 등)이면 null
- */
+function numberOrUndefined(value: unknown): number | undefined {
+  return typeof value === 'number' ? value : undefined;
+}
+
+/** ndjson 한 라인에서 content 조각을 추출. error면 throw, content 없으면 null */
 function extractContent(line: string): string | null {
   let parsed: unknown;
   try {
@@ -31,16 +36,34 @@ function extractContent(line: string): string | null {
   return typeof content === 'string' && content.length > 0 ? content : null;
 }
 
+/** ndjson 한 라인에서 done 통계를 추출 (없으면 빈 객체) */
+function extractStats(line: string): NdjsonStats {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return {};
+  }
+  if (!isRecord(parsed)) {
+    return {};
+  }
+  return {
+    promptTokens: numberOrUndefined(parsed['prompt_eval_count']),
+    responseTokens: numberOrUndefined(parsed['eval_count']),
+  };
+}
+
 /**
- * ReadableStream<Uint8Array>를 ndjson으로 파싱해 content 조각을 yield.
- * 청크가 라인/멀티바이트 문자 경계와 무관하게 잘려도 안전하다.
+ * ReadableStream을 ndjson으로 파싱해 content 조각을 yield하고, 완료 시 토큰 통계를 return.
+ * 청크가 라인/멀티바이트 경계와 무관하게 잘려도 안전.
  */
 export async function* parseNdjsonStream(
   body: ReadableStream<Uint8Array>,
-): AsyncGenerator<string> {
+): AsyncGenerator<string, NdjsonStats> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let stats: NdjsonStats = {};
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -57,6 +80,10 @@ export async function* parseNdjsonStream(
           if (piece !== null) {
             yield piece;
           }
+          const lineStats = extractStats(line);
+          if (lineStats.promptTokens !== undefined) {
+            stats = lineStats;
+          }
         }
         newlineIndex = buffer.indexOf('\n');
       }
@@ -67,8 +94,13 @@ export async function* parseNdjsonStream(
       if (piece !== null) {
         yield piece;
       }
+      const restStats = extractStats(rest);
+      if (restStats.promptTokens !== undefined) {
+        stats = restStats;
+      }
     }
   } finally {
     reader.releaseLock();
   }
+  return stats;
 }

@@ -1,5 +1,6 @@
 import { LlmConnectionError, LlmResponseError } from './errors.js';
 import { parseNdjsonStream } from './ndjson.js';
+import type { NdjsonStats } from './ndjson.js';
 import type { ChatMessage, ChatOptions, LlmClient } from './types.js';
 
 export type FetchLike = (
@@ -42,7 +43,7 @@ export class OllamaClient implements LlmClient {
   async *chatStream(
     messages: ChatMessage[],
     options: ChatOptions = {},
-  ): AsyncGenerator<string> {
+  ): AsyncGenerator<string, NdjsonStats> {
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const controller = new AbortController();
     const timer = setTimeout(() => {
@@ -75,7 +76,7 @@ export class OllamaClient implements LlmClient {
       if (response.body === null) {
         throw new LlmResponseError(response.status, '응답 본문이 비어 있습니다');
       }
-      yield* parseNdjsonStream(response.body);
+      return yield* parseNdjsonStream(response.body);
     } finally {
       clearTimeout(timer);
     }
