@@ -1,6 +1,7 @@
 # tokenizer — Index (Segment 2: BPE 토크나이저)
 
 Baseline: main@c486e1d (clean)
+구현 완료: `main@40e126e` (테스트 164, 실파일 특수토큰·한글왕복 통과)
 
 ## 개요
 
