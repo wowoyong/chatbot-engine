@@ -13,10 +13,17 @@ if [ ! -d "$WIKI_REPO/.git" ]; then
   echo "오류: wiki 레포($WIKI_REPO)가 git 저장소가 아닙니다." >&2
   exit 1
 fi
+if [ ! -f "$WIKI_REPO/scripts/okf.mjs" ]; then
+  echo "오류: OKF 도구($WIKI_REPO/scripts/okf.mjs)가 없습니다." >&2
+  exit 1
+fi
 
 rsync -a --delete --exclude '.last-update.json' openwiki/ "$WIKI_REPO/$WIKI_SUBDIR/"
 
 cd "$WIKI_REPO"
+node scripts/okf.mjs fix "$WIKI_SUBDIR"
+node scripts/okf.mjs check "$WIKI_SUBDIR"
+
 git add -A -- "$WIKI_SUBDIR"
 if git diff --cached --quiet; then
   echo "변경 없음 — wiki 최신 상태"
