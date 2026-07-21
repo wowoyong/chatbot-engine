@@ -29,7 +29,7 @@
 
 1. ~~GitHub 업로드~~ ✅ (wowoyong/chatbot-engine, wowoyong/dev-wiki)
 2. **PAT 정리** — 대화에 노출된 토큰 revoke + 재발급, `env -u GITHUB_TOKEN gh auth login`으로 개인 계정 keyring 등록 (사용자 직접)
-3. **OpenWiki Actions workflow 작성** — `.github/workflows/openwiki.yml` (지금 작성 가능, 실행은 ⑤ 이후)
+3. **OpenWiki 0.2.1 + OKF 자동화** — in-repo canonical bundle, cloud PR workflow, local Ollama fallback, optional dev-wiki mirror. 구현 plan: `docs/plans/wiki-okf-index.md`.
 4. **README 정비** — 공개 레포 첫인상: 프로젝트 소개·아키텍처 다이어그램·실행법 (지금 가능)
 5. **맥미니 self-hosted runner 등록** — 커밋마다 로컬 Ollama(8b)로 wiki 자동 갱신 → 클라우드 비용 0의 완전 자동 문서화 루프
 6. **launchd 상시 구동** — `HOST=0.0.0.0 npm run serve` 서비스화 + 재부팅 자동 시작. **런타임 qwen3:8b 고정** (16GB 제약)
@@ -69,3 +69,11 @@ A-1 (평가 세트) → B 퀵윈 → A-2·A-3 (하이브리드) → C-3·C-4 (wo
 ```
 
 A-1을 맨 앞에 두는 이유: 평가 세트가 생기면 이후 모든 변경(검색·캡처·청킹·임계값)이 "느낌"이 아니라 숫자로 검증된다.
+
+## Repository knowledge 확장 (2026-07-21)
+
+- [x] OpenWiki 기반 recurring repository documentation
+- [x] OKF metadata-aware indexing and trusted retrieval
+- [x] Captured knowledge draft/approval lifecycle
+- [x] Wiki integrity validator and retrieval evaluation runner
+- [ ] OpenWiki 0.2.1 bundle 재생성 후 `npm run wiki:check` 및 `npm run eval:wiki` 운영 gate 통과

@@ -1,5 +1,7 @@
 import type { Embedder } from '../llm/types.js';
 import type { SearchHit, VectorIndex } from './vector-index.js';
+import { formatRetrievedContext } from './context-block.js';
+import { isRetrievableChunk } from './visibility.js';
 
 export interface RetrieverConfig {
   /** 반환할 최대 발췌 수. 기본 4 */
@@ -40,20 +42,12 @@ export class Retriever {
     if (queryEmbedding.length === 0) {
       return { block: null, hits: [] };
     }
-    const hits = this.index.search(queryEmbedding, this.topK, this.minScore);
-    if (hits.length === 0) {
-      return { block: null, hits: [] };
-    }
-    const sections = hits.map((h) => {
-      const label =
-        h.chunk.heading.length > 0
-          ? `${h.chunk.source} > ${h.chunk.heading}`
-          : h.chunk.source;
-      return `[${label}]\n${h.chunk.content}`;
-    });
-    const block =
-      '다음은 질문과 관련된 문서 발췌다. 답변에 활용하되, 관련이 없으면 무시하라.\n\n' +
-      sections.join('\n\n---\n\n');
-    return { block, hits };
+    const hits = this.index.search(
+      queryEmbedding,
+      this.topK,
+      this.minScore,
+      isRetrievableChunk,
+    );
+    return { block: formatRetrievedContext(hits), hits };
   }
 }

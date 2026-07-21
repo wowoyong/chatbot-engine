@@ -3,7 +3,7 @@ import type { IndexedChunk } from '../vector-index.js';
 import { Bm25Index, idf, tokenize } from '../bm25.js';
 
 function chunk(source: string, content: string): IndexedChunk {
-  return { source, heading: '', content, embedding: [] };
+  return { source, heading: '', content, metadata: null, embedding: [] };
 }
 
 describe('tokenize', () => {
@@ -55,5 +55,13 @@ describe('Bm25Index', () => {
       chunk('3.md', '검색'),
     ];
     expect(new Bm25Index(many).search('검색', 2)).toHaveLength(2);
+  });
+
+  it('body에 없는 OKF title도 검색한다', () => {
+    const item = {
+      ...chunk('config.md', '환경 변수 본문'),
+      metadata: { type: 'Reference', title: 'Configuration Matrix', tags: [] },
+    };
+    expect(new Bm25Index([item]).search('Configuration', 1).at(0)?.chunk.source).toBe('config.md');
   });
 });

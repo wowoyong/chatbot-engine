@@ -1,59 +1,103 @@
 import type { Embedder } from '../llm/types.js';
-import { Bm25Index } from './bm25.js';
-import { reciprocalRankFusion } from './fusion.js';
+import { Bm25Index, tokenize } from './bm25.js';
+import { formatRetrievedContext } from './context-block.js';
+import { chunkIdentity, prioritizeSourceDiversity, reciprocalRankFusion } from './fusion.js';
 import type { RetrievedContext } from './retriever.js';
-import type { IndexedChunk, VectorIndex } from './vector-index.js';
+import { isRetrievableChunk } from './visibility.js';
+import type { IndexedChunk, SearchHit, VectorIndex } from './vector-index.js';
 
 export interface HybridConfig {
-  /** 최종 발췌 수. 기본 4 */
   topK?: number;
-  /** 각 검색기에서 뽑는 후보 수. 기본 20 */
   candidateDepth?: number;
+  minVectorScore?: number;
 }
 
 const DEFAULT_TOP_K = 4;
 const DEFAULT_DEPTH = 20;
+export const DEFAULT_MIN_VECTOR_SCORE = 0.88;
 
-function labelOf(chunk: IndexedChunk): string {
-  return chunk.heading.length > 0
-    ? `${chunk.source} > ${chunk.heading}`
-    : chunk.source;
+function containsTitlePhrase(query: string, title: string): boolean {
+  const queryTokens = tokenize(query);
+  const titleTokens = tokenize(title);
+  if (titleTokens.length === 0) return false;
+  return queryTokens.some((_, start) =>
+    titleTokens.every((token, offset) => queryTokens[start + offset] === token),
+  );
+}
+
+function metadataSearch(
+  chunks: readonly IndexedChunk[],
+  query: string,
+  topK: number,
+): SearchHit[] {
+  const queryTokens = new Set(tokenize(query));
+  const hits: SearchHit[] = [];
+  for (const chunk of chunks) {
+    const metadata = chunk.metadata;
+    if (metadata === null) continue;
+    let score = 0;
+    const title = metadata.title?.trim();
+    if (title !== undefined && title.length >= 2 && containsTitlePhrase(query, title)) score += 4;
+    const metadataText = [metadata.type, metadata.title, metadata.description, ...metadata.tags]
+      .filter((value): value is string => value !== undefined)
+      .join(' ');
+    for (const token of tokenize(metadataText)) {
+      if (queryTokens.has(token)) score += 1;
+    }
+    if (score > 0) hits.push({ chunk, score });
+  }
+  hits.sort((left, right) => right.score - left.score);
+  return hits.slice(0, topK);
+}
+
+function exactTitleKeys(
+  chunks: readonly IndexedChunk[],
+  query: string,
+): Set<string> {
+  return new Set(
+    chunks
+      .filter((chunk) => {
+        const title = chunk.metadata?.title?.trim();
+        return title !== undefined && title.length >= 2 && containsTitlePhrase(query, title);
+      })
+      .map(chunkIdentity),
+  );
 }
 
 export class HybridRetriever {
   private readonly embedder: Embedder;
   private readonly index: VectorIndex;
+  private readonly visibleChunks: IndexedChunk[];
   private readonly bm25: Bm25Index;
   private readonly topK: number;
   private readonly depth: number;
+  private readonly minVectorScore: number;
 
   constructor(embedder: Embedder, index: VectorIndex, config: HybridConfig = {}) {
     this.embedder = embedder;
     this.index = index;
-    this.bm25 = new Bm25Index(index.allChunks());
+    this.visibleChunks = index.allChunks().filter(isRetrievableChunk);
+    this.bm25 = new Bm25Index(this.visibleChunks);
     this.topK = config.topK ?? DEFAULT_TOP_K;
     this.depth = config.candidateDepth ?? DEFAULT_DEPTH;
+    this.minVectorScore = config.minVectorScore ?? DEFAULT_MIN_VECTOR_SCORE;
   }
 
   async retrieve(query: string): Promise<RetrievedContext> {
     const [embedding] = await this.embedder.embed([query]);
-    const vectorHits =
-      embedding && embedding.length > 0
-        ? this.index.search(embedding, this.depth, 0)
-        : [];
+    const vectorHits = embedding !== undefined && embedding.length > 0
+      ? this.index.search(embedding, this.depth, this.minVectorScore, isRetrievableChunk)
+      : [];
     const bm25Hits = this.bm25.search(query, this.depth);
-
-    const fused = reciprocalRankFusion(
-      [vectorHits.map((h) => h.chunk), bm25Hits.map((h) => h.chunk)],
-      this.topK,
-    );
-    if (fused.length === 0) {
-      return { block: null, hits: [] };
-    }
-    const sections = fused.map((c) => `[${labelOf(c)}]\n${c.content}`);
-    const block =
-      '다음은 질문과 관련된 문서 발췌다. 답변에 활용하되, 관련이 없으면 무시하라.\n\n' +
-      sections.join('\n\n---\n\n');
-    return { block, hits: fused.map((chunk) => ({ chunk, score: 0 })) };
+    const metadataHits = metadataSearch(this.visibleChunks, query, this.depth);
+    const exactMetadataKeys = exactTitleKeys(this.visibleChunks, query);
+    const strongEvidenceKeys = new Set([
+      ...vectorHits.map((hit) => chunkIdentity(hit.chunk)),
+      ...exactMetadataKeys,
+    ]);
+    const confident = reciprocalRankFusion([metadataHits, bm25Hits, vectorHits])
+      .filter((hit) => strongEvidenceKeys.has(chunkIdentity(hit.chunk)));
+    const hits = prioritizeSourceDiversity(confident, this.topK);
+    return { block: formatRetrievedContext(hits), hits };
   }
 }

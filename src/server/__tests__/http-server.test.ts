@@ -5,8 +5,9 @@ import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../app/bootstrap.js';
+import type { App } from '../../app/bootstrap.js';
 import type { ChatMessage, ChatOptions, Embedder, LlmClient } from '../../llm/types.js';
-import { createChatServer } from '../http-server.js';
+import { createChatServer, isLoopbackAddress } from '../http-server.js';
 
 class FakeLlmClient implements LlmClient {
   pieces: string[] = ['안녕', '하세요'];
@@ -47,13 +48,14 @@ describe('createChatServer', () => {
   let server: Server;
   let baseUrl: string;
   let fake: FakeLlmClient;
+  let app: App;
 
   beforeEach(async () => {
     dir = join('.test-tmp', randomUUID());
     await mkdir(join(dir, 'docs'), { recursive: true });
     await writeFile(join(dir, 'docs', 'a.md'), '# 제목\n본문', 'utf8');
     fake = new FakeLlmClient();
-    const app = await createApp(
+    app = await createApp(
       {
         CHATBOT_SESSION_FILE: join(dir, 'session.json'),
         CHATBOT_INDEX_FILE: join(dir, 'index.json'),
@@ -78,6 +80,22 @@ describe('createChatServer', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message }),
+    });
+  }
+
+  function postJson(path: string, body: unknown): Promise<Response> {
+    return fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function postRaw(path: string, body: string): Promise<Response> {
+    return fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
     });
   }
 
@@ -167,9 +185,11 @@ describe('createChatServer', () => {
       extracted: number;
       saved: string[];
       skipped: string[];
+      indexUpdated: boolean;
     };
     expect(data.extracted).toBe(1);
     expect(data.saved).toHaveLength(1);
+    expect(data.indexUpdated).toBe(true);
     expect(data.saved.at(0)).toContain(join('captured', 'fact'));
   });
 
@@ -202,5 +222,65 @@ describe('createChatServer', () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { items: unknown[] };
     expect(Array.isArray(data.items)).toBe(true);
+  });
+
+  it('sources SSE에 OKF title/resource를 포함한다', async () => {
+    await writeFile(
+      join(dir, 'docs', 'a.md'),
+      '---\ntype: Reference\ntitle: "설치 가이드"\nresource: "https://example.com/install"\ntags: [install]\n---\n\n# 설치\n본문',
+    );
+    await app.rebuildIndex('t');
+    const text = await (await postChat('설치 본문')).text();
+    expect(text).toContain('event: sources');
+    expect(text).toContain('"title":"설치 가이드"');
+    expect(text).toContain('"resource":"https://example.com/install"');
+  });
+
+  it('draft id를 승인하고 index 결과를 반환한다', async () => {
+    await (await postChat('질문')).text();
+    fake.chatResult = '[{"title":"승인 항목","category":"fact","content":"새 내용"}]';
+    await (await fetch(`${baseUrl}/api/capture`, { method: 'POST' })).json();
+    const list = (await (await fetch(`${baseUrl}/api/captured`)).json()) as {
+      items: { id: string; status: string }[];
+    };
+    const draft = list.items.find((entry) => entry.status === 'draft');
+    if (draft === undefined) throw new Error('expected draft');
+    const response = await postJson('/api/captured/approve', { id: draft.id });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      entry: { id: draft.id, status: 'verified' }, indexUpdated: true,
+    });
+  });
+
+  it.each([
+    ['../secret.md', 400, 'INVALID_ID'],
+    ['concept/missing.md', 404, 'NOT_FOUND'],
+  ] as const)('approve id=%s를 %i로 매핑한다', async (id, status, code) => {
+    const response = await postJson('/api/captured/approve', { id });
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ code });
+  });
+
+  it('legacy verified 항목 승인은 409 NOT_DRAFT다', async () => {
+    await mkdir(join(dir, 'docs', 'captured', 'concept'), { recursive: true });
+    await writeFile(join(dir, 'docs', 'captured', 'concept', 'legacy.md'), '# Legacy');
+    const response = await postJson('/api/captured/approve', { id: 'concept/legacy.md' });
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: 'NOT_DRAFT' });
+  });
+
+  it('malformed JSON과 empty id는 400이다', async () => {
+    expect((await postRaw('/api/captured/approve', '{')).status).toBe(400);
+    expect((await postJson('/api/captured/approve', { id: '' })).status).toBe(400);
+  });
+});
+
+describe('isLoopbackAddress', () => {
+  it('IPv4/IPv6 loopback만 승인한다', () => {
+    expect(isLoopbackAddress('127.0.0.1')).toBe(true);
+    expect(isLoopbackAddress('::1')).toBe(true);
+    expect(isLoopbackAddress('::ffff:127.0.0.1')).toBe(true);
+    expect(isLoopbackAddress('192.168.0.10')).toBe(false);
+    expect(isLoopbackAddress(undefined)).toBe(false);
   });
 });

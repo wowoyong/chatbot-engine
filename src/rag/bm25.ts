@@ -9,6 +9,19 @@ export function tokenize(text: string): string[] {
   return matches ?? [];
 }
 
+export function searchableText(chunk: IndexedChunk): string {
+  return [
+    chunk.metadata?.type,
+    chunk.metadata?.title,
+    chunk.metadata?.description,
+    ...(chunk.metadata?.tags ?? []),
+    chunk.heading,
+    chunk.content,
+  ]
+    .filter((value): value is string => value !== undefined && value.length > 0)
+    .join(' ');
+}
+
 /** BM25 IDF (음수 방지 변형): log(1 + (N - df + 0.5) / (df + 0.5)) */
 export function idf(totalDocs: number, docFreq: number): number {
   return Math.log(1 + (totalDocs - docFreq + 0.5) / (docFreq + 0.5));
@@ -33,7 +46,7 @@ export class Bm25Index {
 
   constructor(chunks: readonly IndexedChunk[]) {
     this.docs = chunks.map((chunk) => {
-      const tokens = tokenize(`${chunk.heading} ${chunk.content}`);
+      const tokens = tokenize(searchableText(chunk));
       const termFreq = new Map<string, number>();
       for (const token of tokens) {
         termFreq.set(token, (termFreq.get(token) ?? 0) + 1);

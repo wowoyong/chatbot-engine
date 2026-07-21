@@ -34,5 +34,15 @@ This repository uses OpenWiki for recurring code documentation. Start with `open
 The scheduled OpenWiki GitHub Actions workflow refreshes the repository wiki. Do not hand-edit generated OpenWiki pages unless explicitly asked; prefer updating source code/docs and letting OpenWiki regenerate.
 
 <!-- OPENWIKI:END -->
-- wiki 갱신: `OPENWIKI_PROVIDER=openai-compatible OPENAI_COMPATIBLE_BASE_URL=http://localhost:11434/v1 OPENAI_COMPATIBLE_API_KEY=ollama OPENWIKI_MODEL_ID=qwen3:8b npx -y openwiki code --update` → `npm run sync-wiki` (모노레포형 wiki `../dev-wiki/chatbot-engine/`로 반영, env `WIKI_REPO`/`WIKI_SUBDIR`)
-- 챗봇의 wiki 습득: `RAG_DOCS_DIR=../dev-wiki CHATBOT_INDEX_FILE=.chatbot/wiki-index.json npm run dev` 후 `/index` (전 프로젝트 습득 — 단일 프로젝트만은 `RAG_DOCS_DIR=../dev-wiki/chatbot-engine`)
+- canonical wiki: repository의 `openwiki/` OKF v0.1 bundle. generated Markdown은 직접 수정하지 않고 OpenWiki PR로만 갱신
+- cloud 갱신: `.github/workflows/openwiki-update.yml`이 Node 22 + `openwiki@0.2.1` + OpenRouter로 PR 생성
+- local fallback: `npx -y openwiki@0.2.1 code --update --print` (Node 22 + Ollama/OpenAI-compatible env 필요)
+- optional mirror: `npm run sync-wiki`가 generated bundle만 `../dev-wiki/chatbot-engine/`로 복사
+- 챗봇의 자기 wiki 습득: `RAG_DOCS_DIR=openwiki CHATBOT_INDEX_FILE=.chatbot/wiki-index.json npm run dev` 후 `/index`
+
+## Repository knowledge
+
+- 시작점은 `openwiki/quickstart.md`; generated page는 직접 편집하지 않고 source/docs 수정 후 OpenWiki를 재실행
+- `npm run wiki:check`는 required path, OKF metadata, 내부 link, command drift를 검사
+- OKF `draft`와 `deprecated`는 chat retrieval에서 제외되고 `verified`만 승인된 captured 지식으로 노출
+- `npm run eval:wiki`는 운영 threshold/topK로 answerable 및 no-answer retrieval을 평가하며 Ollama가 필요

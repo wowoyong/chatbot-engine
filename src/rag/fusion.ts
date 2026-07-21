@@ -1,38 +1,49 @@
-import type { IndexedChunk } from './vector-index.js';
+import type { IndexedChunk, SearchHit } from './vector-index.js';
 
 export const RRF_K = 60;
 
-/** 청크 식별 키 (source + heading + content 앞부분) — 동일 청크 판별 */
-function chunkKey(chunk: IndexedChunk): string {
-  return `${chunk.source} ${chunk.heading} ${chunk.content.slice(0, 64)}`;
+export function chunkIdentity(chunk: IndexedChunk): string {
+  return `${chunk.source}\0${chunk.heading}\0${chunk.content}`;
 }
 
-/**
- * 여러 순위 목록을 RRF로 결합해 상위 topK 청크를 반환한다.
- * 각 목록은 순위 순(0=최상위) 청크 배열. 점수 스케일 무관.
- */
 export function reciprocalRankFusion(
-  rankings: readonly (readonly IndexedChunk[])[],
-  topK: number,
-): IndexedChunk[] {
+  rankings: readonly (readonly SearchHit[])[],
+): SearchHit[] {
   const scores = new Map<string, number>();
   const byKey = new Map<string, IndexedChunk>();
   for (const ranking of rankings) {
     for (let rank = 0; rank < ranking.length; rank += 1) {
-      const chunk = ranking[rank];
-      if (chunk === undefined) {
-        continue;
-      }
-      const key = chunkKey(chunk);
+      const hit = ranking[rank];
+      if (hit === undefined) continue;
+      const key = chunkIdentity(hit.chunk);
       scores.set(key, (scores.get(key) ?? 0) + 1 / (RRF_K + rank + 1));
-      if (!byKey.has(key)) {
-        byKey.set(key, chunk);
-      }
+      if (!byKey.has(key)) byKey.set(key, hit.chunk);
     }
   }
   return [...scores.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, topK)
-    .map(([key]) => byKey.get(key))
-    .filter((c): c is IndexedChunk => c !== undefined);
+    .sort((left, right) => right[1] - left[1])
+    .map(([key, score]) => ({ chunk: byKey.get(key), score }))
+    .filter((hit): hit is SearchHit => hit.chunk !== undefined);
+}
+
+export function prioritizeSourceDiversity(
+  hits: readonly SearchHit[],
+  topK: number,
+): SearchHit[] {
+  const selected: SearchHit[] = [];
+  const deferred: SearchHit[] = [];
+  const seenSources = new Set<string>();
+  for (const hit of hits) {
+    if (seenSources.has(hit.chunk.source)) deferred.push(hit);
+    else {
+      selected.push(hit);
+      seenSources.add(hit.chunk.source);
+    }
+    if (selected.length === topK) return selected;
+  }
+  for (const hit of deferred) {
+    selected.push(hit);
+    if (selected.length === topK) break;
+  }
+  return selected;
 }

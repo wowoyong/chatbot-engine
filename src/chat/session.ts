@@ -5,6 +5,8 @@ import type { ChatMessage, ChatOptions, LlmClient } from '../llm/types.js';
 export interface SourceRef {
   source: string;
   heading: string;
+  title?: string;
+  resource?: string;
 }
 
 export interface TurnMeta {
@@ -15,7 +17,16 @@ export interface TurnMeta {
 
 /** 검색 컨텍스트 공급자 — rag의 Retriever가 구조적으로 만족 (chat→rag 의존 없음) */
 export interface ContextRetriever {
-  retrieve(query: string): Promise<{ block: string | null; hits?: { chunk: { source: string; heading: string } }[] }>;
+  retrieve(query: string): Promise<{
+    block: string | null;
+    hits?: {
+      chunk: {
+        source: string;
+        heading: string;
+        metadata?: { title?: string; resource?: string } | null;
+      };
+    }[];
+  }>;
 }
 
 export interface ChatSessionConfig {
@@ -54,9 +65,11 @@ export class ChatSession {
       try {
         const retrieved = await this.retriever.retrieve(userInput);
         contextBlock = retrieved.block;
-        sources = (retrieved.hits ?? []).map((h) => ({
-          source: h.chunk.source,
-          heading: h.chunk.heading,
+        sources = (retrieved.hits ?? []).map((hit) => ({
+          source: hit.chunk.source,
+          heading: hit.chunk.heading,
+          title: hit.chunk.metadata?.title,
+          resource: hit.chunk.metadata?.resource,
         }));
       } catch {
         contextBlock = null;

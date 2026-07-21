@@ -1,8 +1,63 @@
 import * as readline from 'node:readline/promises';
-import { env, exit, stdin, stdout } from 'node:process';
+import { env, exit, argv, stdin, stdout } from 'node:process';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createApp } from '../app/bootstrap.js';
+import type { App } from '../app/bootstrap.js';
+import type { CaptureResult } from '../app/bootstrap.js';
 import { LlmConnectionError } from '../llm/errors.js';
 import type { TurnMeta } from '../chat/session.js';
+
+function sourceLabel(source: TurnMeta['sources'][number]): string {
+  const base = source.title ?? source.source;
+  const withHeading = source.heading.length > 0 ? `${base} > ${source.heading}` : base;
+  return source.resource === undefined ? withHeading : `${withHeading} (${source.resource})`;
+}
+
+export function formatCaptureSummary(result: CaptureResult): string {
+  const summary = `(추출 ${result.extracted}건 → 저장 ${result.saved.length}건, 기존 지식 ${result.skipped.length}건)\n`;
+  return result.warning === undefined ? summary : `${summary}${result.warning}\n`;
+}
+
+export async function handleKnowledgeReviewCommand(
+  input: string,
+  app: App,
+  write: (text: string) => void,
+  now: () => string,
+): Promise<boolean> {
+  if (input === '/captured') {
+    const entries = await app.listCaptured();
+    if (entries.length === 0) write('(저장된 지식이 없습니다)\n');
+    let draftNumber = 0;
+    for (const entry of entries) {
+      if (entry.status === 'draft') {
+        draftNumber += 1;
+        write(`${draftNumber}. [draft] ${entry.title} (${entry.category})\n`);
+      } else {
+        write(`- [${entry.status}] ${entry.title} (${entry.category})\n`);
+      }
+    }
+    return true;
+  }
+  const approveMatch = input.match(/^\/approve\s+(\d+)$/);
+  if (approveMatch === null) return false;
+  const entries = (await app.listCaptured()).filter((entry) => entry.status === 'draft');
+  const number = approveMatch[1];
+  const entry = number === undefined ? undefined : entries[Number(number) - 1];
+  if (entry === undefined) {
+    write('유효한 항목 번호를 입력하세요.\n');
+    return true;
+  }
+  try {
+    const result = await app.approveCaptured(entry.id, now());
+    write(`승인됨: ${result.entry.title}\n`);
+    if (result.warning !== undefined) write(`${result.warning}\n`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    write(`승인 오류: ${message}\n`);
+  }
+  return true;
+}
 
 async function main(): Promise<void> {
   const app = await createApp(env);
@@ -19,7 +74,7 @@ async function main(): Promise<void> {
   });
 
   stdout.write(
-    `chatbot-engine — ${app.modelName} (명령: /exit 종료, /clear 히스토리 초기화, /index RAG 인덱스 구축, /capture 지식 저장, /captured 목록)\n`,
+    `chatbot-engine — ${app.modelName} (명령: /exit 종료, /clear 히스토리 초기화, /index RAG 인덱스 구축, /capture 지식 저장, /captured 목록, /approve N 승인)\n`,
   );
 
   while (true) {
@@ -56,9 +111,7 @@ async function main(): Promise<void> {
       try {
         stdout.write('(대화에서 지식을 추출합니다...)\n');
         const result = await app.captureKnowledge(new Date().toISOString());
-        stdout.write(
-          `(추출 ${result.extracted}건 → 저장 ${result.saved.length}건, 기존 지식 ${result.skipped.length}건)\n`,
-        );
+        stdout.write(formatCaptureSummary(result));
         for (const path of result.saved) {
           stdout.write(`  + ${path}\n`);
         }
@@ -71,18 +124,12 @@ async function main(): Promise<void> {
       }
       continue;
     }
-    if (line === '/captured') {
-      const entries = await app.listCaptured();
-      if (entries.length === 0) {
-        stdout.write('(저장된 지식이 없습니다)\n');
-      } else {
-        stdout.write(`(저장된 지식 ${entries.length}건)\n`);
-        for (const e of entries) {
-          stdout.write(`  [${e.category}] ${e.title}\n`);
-        }
-      }
-      continue;
-    }
+    if (await handleKnowledgeReviewCommand(
+      line,
+      app,
+      (text) => stdout.write(text),
+      () => new Date().toISOString(),
+    )) continue;
 
     stdout.write('bot> ');
     try {
@@ -95,9 +142,7 @@ async function main(): Promise<void> {
       stdout.write('\n');
       const meta: TurnMeta = result.value;
       if (meta.sources.length > 0) {
-        const labels = meta.sources
-          .map((s) => (s.heading.length > 0 ? `${s.source} > ${s.heading}` : s.source))
-          .join(', ');
+        const labels = meta.sources.map(sourceLabel).join(', ');
         stdout.write(`  출처: ${labels}\n`);
       }
       if (meta.responseTokens !== undefined) {
@@ -122,7 +167,9 @@ async function main(): Promise<void> {
   rl.close();
 }
 
-main().catch((err: unknown) => {
-  console.error(err);
-  exit(1);
-});
+if (argv[1] !== undefined && resolve(argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err: unknown) => {
+    console.error(err);
+    exit(1);
+  });
+}

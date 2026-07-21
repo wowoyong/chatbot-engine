@@ -1,9 +1,12 @@
+import type { DocumentMetadata } from '../okf/document.js';
+
 export interface Chunk {
   /** 원본 파일 경로 */
   source: string;
   /** 청크가 속한 헤딩 텍스트 (헤딩 이전 본문이면 '') */
   heading: string;
   content: string;
+  metadata: DocumentMetadata | null;
 }
 
 export interface ChunkOptions {
@@ -72,6 +75,7 @@ export function chunkMarkdown(
   markdown: string,
   source: string,
   options: ChunkOptions = {},
+  metadata: DocumentMetadata | null = null,
 ): Chunk[] {
   const maxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
   const overlapChars = Math.min(
@@ -86,7 +90,7 @@ export function chunkMarkdown(
       continue;
     }
     for (const piece of splitLong(body, maxChars, overlapChars)) {
-      chunks.push({ source, heading: section.heading, content: piece });
+      chunks.push({ source, heading: section.heading, content: piece, metadata });
     }
   }
   return chunks;

@@ -57,3 +57,31 @@ export function summarize(
     mrr: mean(perQuestion.map((q) => reciprocalRank(q.ranked, q.expected))),
   };
 }
+
+export interface AbstentionEvalCase {
+  ranked: string[];
+  expected: string | null;
+}
+
+export interface AbstentionEvalSummary extends EvalSummary {
+  answerableCount: number;
+  noAnswerCount: number;
+  noAnswerAccuracy: number;
+}
+
+export function summarizeWithAbstention(
+  perQuestion: readonly AbstentionEvalCase[],
+): AbstentionEvalSummary {
+  const answerable = perQuestion.filter(
+    (item): item is { ranked: string[]; expected: string } => item.expected !== null,
+  );
+  const noAnswer = perQuestion.filter((item) => item.expected === null);
+  const answerSummary = summarize(answerable);
+  return {
+    ...answerSummary,
+    count: perQuestion.length,
+    answerableCount: answerable.length,
+    noAnswerCount: noAnswer.length,
+    noAnswerAccuracy: mean(noAnswer.map((item) => item.ranked.length === 0 ? 1 : 0)),
+  };
+}

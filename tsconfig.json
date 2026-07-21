@@ -11,5 +11,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": ["src", "vitest.config.ts"]
+  "include": ["src", "eval", "scripts", "vitest.config.ts"]
 }

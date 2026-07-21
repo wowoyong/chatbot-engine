@@ -26,16 +26,23 @@
   input[type=text] { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; }
   button { padding: 8px 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: #eee; cursor: pointer; }
   button:disabled { opacity: .5; cursor: default; }
+  #captured-panel { border: 1px solid #333; border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+  #captured-list > div { display: flex; justify-content: space-between; gap: 8px; margin: 6px 0; }
 </style>
 </head>
 <body>
 <h1>chatbot-engine
   <span class="actions">
     <button id="capture" type="button">지식 저장</button>
+    <button id="review" type="button">지식 검토</button>
     <button id="reindex" type="button">재인덱싱</button>
     <button id="clear" type="button">초기화</button>
   </span>
 </h1>
+<section id="captured-panel" hidden>
+  <div id="captured-notice" class="sys"></div>
+  <div id="captured-list"></div>
+</section>
 <div id="log"></div>
 <form id="form">
   <input id="input" type="text" placeholder="메시지를 입력하세요" autocomplete="off">
@@ -49,6 +56,10 @@ const sendBtn = document.getElementById('send');
 const clearBtn = document.getElementById('clear');
 const reindexBtn = document.getElementById('reindex');
 const captureBtn = document.getElementById('capture');
+const reviewBtn = document.getElementById('review');
+const capturedPanel = document.getElementById('captured-panel');
+const capturedList = document.getElementById('captured-list');
+const capturedNotice = document.getElementById('captured-notice');
 
 let activeController = null;
 
@@ -65,6 +76,78 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
+}
+
+function safeHttpUrl(value) {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function sourceLabel(source) {
+  const base = source.title || source.source;
+  return source.heading ? base + ' > ' + source.heading : base;
+}
+
+function appendSource(parent, source) {
+  const row = document.createElement('div');
+  const label = sourceLabel(source);
+  const href = safeHttpUrl(source.resource);
+  if (href) {
+    const anchor = document.createElement('a');
+    anchor.textContent = label;
+    anchor.href = href;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    row.appendChild(anchor);
+  } else {
+    row.textContent = label;
+  }
+  parent.appendChild(row);
+}
+
+function showCapturedNotice(message) {
+  capturedNotice.textContent = message;
+}
+
+async function loadCaptured() {
+  const response = await fetch('/api/captured');
+  const payload = await response.json();
+  const entries = payload.items || [];
+  capturedList.replaceChildren();
+  for (const entry of entries) {
+    const row = document.createElement('div');
+    const label = document.createElement('span');
+    label.textContent = '[' + entry.status + '] ' + entry.title;
+    row.appendChild(label);
+    if (entry.status === 'draft') {
+      const approve = document.createElement('button');
+      approve.type = 'button';
+      approve.textContent = '승인';
+      approve.addEventListener('click', async () => {
+        approve.disabled = true;
+        const response = await fetch('/api/captured/approve', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id: entry.id }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          showCapturedNotice(result.error || '승인에 실패했습니다.');
+          approve.disabled = false;
+          return;
+        }
+        showCapturedNotice(result.warning || '승인했습니다.');
+        await loadCaptured();
+      });
+      row.appendChild(approve);
+    }
+    capturedList.appendChild(row);
+  }
 }
 
 /** 경량 마크다운 → 안전 HTML (입력을 먼저 escape하므로 XSS 없음) */
@@ -134,15 +217,12 @@ function finalize(ctx) {
   ctx.botEl.innerHTML = renderMarkdown(ctx.raw);
   const parts = [];
   if (ctx.sources && ctx.sources.length > 0) {
-    const labels = ctx.sources
-      .map((s) => (s.heading ? s.source + ' > ' + s.heading : s.source))
-      .join(', ');
     const det = document.createElement('details');
     det.className = 'meta';
     const sum = document.createElement('summary');
     sum.textContent = '참조 문서 ' + ctx.sources.length + '건';
     const body = document.createElement('div');
-    body.textContent = labels;
+    for (const source of ctx.sources) appendSource(body, source);
     det.appendChild(sum);
     det.appendChild(body);
     log.appendChild(det);
@@ -245,10 +325,23 @@ captureBtn.addEventListener('click', async () => {
     }
     notice.textContent =
       '(추출 ' + data.extracted + '건 → 저장 ' + data.saved.length + '건, 기존 지식 ' + data.skipped.length + '건)';
+    if (data.warning) notice.textContent += ' ' + data.warning;
   } catch {
     notice.textContent = '(지식 추출 오류 — 다시 시도하세요)';
   } finally {
     captureBtn.disabled = false;
+  }
+});
+
+reviewBtn.addEventListener('click', async () => {
+  capturedPanel.hidden = !capturedPanel.hidden;
+  if (!capturedPanel.hidden) {
+    showCapturedNotice('');
+    try {
+      await loadCaptured();
+    } catch {
+      showCapturedNotice('지식 목록을 불러오지 못했습니다.');
+    }
   }
 });
 

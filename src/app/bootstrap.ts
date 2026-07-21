@@ -1,7 +1,11 @@
 import { join } from 'node:path';
 import { ChatSession } from '../chat/session.js';
 import { extractKnowledge } from '../knowledge/extractor.js';
-import { listCaptured } from '../knowledge/capture-store.js';
+import {
+  approveCaptured as approveCapturedStore,
+  listCaptured,
+} from '../knowledge/capture-store.js';
+import type { CapturedEntry } from '../knowledge/capture-store.js';
 import { judgeNovelty } from '../knowledge/novelty.js';
 import { saveCaptured } from '../knowledge/capture-store.js';
 import type { Embedder, LlmClient } from '../llm/types.js';
@@ -11,10 +15,11 @@ import { GgufModel } from '../gguf/model.js';
 import { BpeTokenizer } from '../tokenizer/bpe.js';
 import { TransformerModel } from '../transformer/model.js';
 import { NativeLlmClient } from '../native/native-client.js';
-import { buildIndex } from '../rag/indexer.js';
-import { HybridRetriever } from '../rag/hybrid-retriever.js';
+import { buildIndex, computeSourceFingerprint } from '../rag/indexer.js';
+import { DEFAULT_MIN_VECTOR_SCORE, HybridRetriever } from '../rag/hybrid-retriever.js';
 import { VectorIndex } from '../rag/vector-index.js';
 import { SessionStore } from '../store/session-store.js';
+import { MutationQueue } from './mutation-queue.js';
 
 export type AppEnv = Record<string, string | undefined>;
 
@@ -31,6 +36,14 @@ export interface CaptureResult {
   saved: string[];
   /** 기존 지식으로 판정되어 스킵된 제목들 */
   skipped: string[];
+  indexUpdated: boolean;
+  warning?: string;
+}
+
+export interface CaptureApprovalResult {
+  entry: CapturedEntry;
+  indexUpdated: boolean;
+  warning?: string;
 }
 
 export interface App {
@@ -48,6 +61,8 @@ export interface App {
   captureKnowledge(capturedAt: string): Promise<CaptureResult>;
   /** 저장된 지식 목록 (<docsDir>/captured) */
   listCaptured(): Promise<import('../knowledge/capture-store.js').CapturedEntry[]>;
+  /** draft captured knowledge를 승인하고 index를 갱신 */
+  approveCaptured(id: string, reviewedAt: string): Promise<CaptureApprovalResult>;
 }
 
 const SYSTEM_PROMPT =
@@ -95,22 +110,51 @@ export async function createApp(
   const indexFile = env['CHATBOT_INDEX_FILE'] ?? DEFAULT_INDEX_FILE;
   const docsDir = env['RAG_DOCS_DIR'] ?? DEFAULT_DOCS_DIR;
   const startupNotices: string[] = [];
+  const rawMinVectorScore = env['RAG_MIN_VECTOR_SCORE'];
+  const parsedMinVectorScore = rawMinVectorScore === undefined
+    ? DEFAULT_MIN_VECTOR_SCORE
+    : Number(rawMinVectorScore);
+  const minVectorScore = Number.isFinite(parsedMinVectorScore) &&
+    parsedMinVectorScore >= 0 && parsedMinVectorScore <= 1
+    ? parsedMinVectorScore
+    : DEFAULT_MIN_VECTOR_SCORE;
+  if (rawMinVectorScore !== undefined && minVectorScore !== parsedMinVectorScore) {
+    startupNotices.push(
+      `RAG_MIN_VECTOR_SCORE(${rawMinVectorScore})가 0~1 범위가 아니어서 기본값(${DEFAULT_MIN_VECTOR_SCORE})을 사용합니다`,
+    );
+  }
 
   let currentIndex: VectorIndex | null = null;
   let retriever: HybridRetriever | null = null;
+  const mutations = new MutationQueue();
+  const capturedDir = join(docsDir, 'captured');
 
-  const loadedIndex = await VectorIndex.load(indexFile);
-  if (loadedIndex !== null) {
-    if (loadedIndex.model === embedderModel) {
-      currentIndex = loadedIndex;
-      retriever = new HybridRetriever(embedder, loadedIndex);
-      startupNotices.push(
-        `RAG 인덱스 로드: ${loadedIndex.size}청크, 생성 ${loadedIndex.createdAt}`,
-      );
-    } else {
+  const loadResult = await VectorIndex.loadWithStatus(indexFile);
+  if (loadResult.status === 'unsupported-version') {
+    startupNotices.push('RAG 인덱스 형식이 구버전이라 무시합니다 — /index로 재인덱싱하세요');
+  } else if (loadResult.status === 'invalid') {
+    startupNotices.push('RAG 인덱스 파일이 손상되어 무시합니다 — /index로 재인덱싱하세요');
+  } else if (loadResult.status === 'loaded') {
+    const loadedIndex = loadResult.index;
+    if (loadedIndex.model !== embedderModel) {
       startupNotices.push(
         `RAG 인덱스의 임베딩 모델(${loadedIndex.model})이 현재(${embedderModel})와 달라 무시합니다 — 재인덱싱하세요`,
       );
+    } else {
+      try {
+        const currentFingerprint = await computeSourceFingerprint(docsDir);
+        if (loadedIndex.sourceFingerprint !== currentFingerprint) {
+          startupNotices.push('RAG 인덱스가 문서보다 오래되어 무시합니다 — /index로 재인덱싱하세요');
+        } else {
+          currentIndex = loadedIndex;
+          retriever = new HybridRetriever(embedder, loadedIndex, { minVectorScore });
+          startupNotices.push(
+            `RAG 인덱스 로드: ${loadedIndex.size}청크, 생성 ${loadedIndex.createdAt}`,
+          );
+        }
+      } catch {
+        startupNotices.push('RAG 문서 fingerprint를 확인할 수 없어 저장된 인덱스를 무시합니다');
+      }
     }
   }
 
@@ -130,16 +174,18 @@ export async function createApp(
     );
   }
 
-  async function rebuild(createdAt: string): Promise<number> {
+  async function rebuildNow(createdAt: string): Promise<number> {
     const built = await buildIndex(embedder, docsDir, {
       model: embedderModel,
       createdAt,
     });
     await built.save(indexFile);
     currentIndex = built;
-    retriever = new HybridRetriever(embedder, built);
+    retriever = new HybridRetriever(embedder, built, { minVectorScore });
     return built.size;
   }
+  const rebuildIndex = (createdAt: string): Promise<number> =>
+    mutations.run(() => rebuildNow(createdAt));
 
   return {
     session,
@@ -148,29 +194,53 @@ export async function createApp(
     indexFile,
     modelName,
     startupNotices,
-    rebuildIndex: rebuild,
-    async captureKnowledge(capturedAt: string): Promise<CaptureResult> {
+    rebuildIndex,
+    captureKnowledge: (capturedAt: string): Promise<CaptureResult> => mutations.run(async () => {
       const candidates = await extractKnowledge(client, session.getHistory());
       const verdicts = await judgeNovelty(embedder, currentIndex, candidates);
-      const captureDir = join(docsDir, 'captured');
       const saved: string[] = [];
       const skipped: string[] = [];
       for (const verdict of verdicts) {
         if (verdict.isNew) {
-          saved.push(await saveCaptured(captureDir, verdict, capturedAt));
+          saved.push(await saveCaptured(capturedDir, verdict, capturedAt));
         } else {
           skipped.push(verdict.candidate.title);
         }
       }
-      if (saved.length > 0) {
-        await rebuild(capturedAt);
+      if (saved.length === 0) {
+        return { extracted: candidates.length, saved, skipped, indexUpdated: true };
       }
-      return { extracted: candidates.length, saved, skipped };
-    },
+      try {
+        await rebuildNow(capturedAt);
+        return { extracted: candidates.length, saved, skipped, indexUpdated: true };
+      } catch {
+        return {
+          extracted: candidates.length,
+          saved,
+          skipped,
+          indexUpdated: false,
+          warning: 'draft는 저장됐지만 재색인에 실패했습니다. /index로 재시도하세요.',
+        };
+      }
+    }),
     listCaptured(): Promise<
       import('../knowledge/capture-store.js').CapturedEntry[]
     > {
-      return listCaptured(join(docsDir, 'captured'));
+      return listCaptured(capturedDir);
     },
+    approveCaptured: (id: string, reviewedAt: string): Promise<CaptureApprovalResult> =>
+      mutations.run(async () => {
+        const entry = await approveCapturedStore(capturedDir, id, reviewedAt);
+        try {
+          await rebuildNow(reviewedAt);
+          return { entry, indexUpdated: true };
+        } catch {
+          return {
+            entry,
+            indexUpdated: false,
+            warning: '승인은 저장됐지만 재색인에 실패했습니다. /index로 재시도하세요.',
+          };
+        }
+      }),
   };
 }

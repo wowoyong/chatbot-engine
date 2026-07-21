@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Embedder } from '../../llm/types.js';
-import { buildIndex, listMarkdownFiles } from '../indexer.js';
+import { buildIndex, computeSourceFingerprint, listMarkdownFiles } from '../indexer.js';
 
 class FakeEmbedder implements Embedder {
   readonly calls: string[][] = [];
@@ -63,5 +63,32 @@ describe('indexer', () => {
     const embedder = new FakeEmbedder();
     const index = await buildIndex(embedder, dir, { model: 'm', createdAt: 't' });
     expect(index.size).toBe(0);
+  });
+
+  it('OKF metadata를 chunk에 넣고 frontmatter는 content에서 제거한다', async () => {
+    await writeFile(join(dir, 'okf.md'), '---\ntype: Reference\ntitle: RAG\ntags: [rag]\n---\n\n# 검색\n본문');
+    const embedder = new FakeEmbedder();
+    const index = await buildIndex(embedder, dir, { model: 'm', createdAt: 't' });
+    const item = index.allChunks().find((chunk) => chunk.source.endsWith('okf.md'));
+    expect(item?.metadata).toMatchObject({ type: 'Reference', title: 'RAG', tags: ['rag'] });
+    expect(item?.content).toBe('본문');
+    expect(embedder.calls.at(0)?.some((input) => input.includes('Reference\nRAG\nrag'))).toBe(true);
+  });
+
+  it('문서 내용이 바뀌면 source fingerprint가 바뀐다', async () => {
+    const path = join(dir, 'fingerprint.md');
+    await writeFile(path, '# A\n첫 내용');
+    const before = await computeSourceFingerprint(dir);
+    await writeFile(path, '# A\n바뀐 내용');
+    expect(await computeSourceFingerprint(dir)).not.toBe(before);
+  });
+
+  it('root INSTRUCTIONS.md는 index와 fingerprint 입력에서 제외한다', async () => {
+    const before = await computeSourceFingerprint(dir);
+    await writeFile(join(dir, 'INSTRUCTIONS.md'), '# generation-only-secret-marker');
+    const after = await computeSourceFingerprint(dir);
+    const index = await buildIndex(new FakeEmbedder(), dir, { model: 'm', createdAt: 't' });
+    expect(after).toBe(before);
+    expect(index.allChunks().some((chunk) => chunk.source.endsWith('INSTRUCTIONS.md'))).toBe(false);
   });
 });

@@ -18,8 +18,8 @@ function candidate(title: string): KnowledgeCandidate {
   return { title, category: 'fact', content: `${title} 내용` };
 }
 
-const INDEX = VectorIndex.create('m', 't', [
-  { source: 'a.md', heading: '기존', content: '기존 지식', embedding: [1, 0] },
+const INDEX = VectorIndex.create('m', 't', 'fp', [
+  { source: 'a.md', heading: '기존', content: '기존 지식', metadata: null, embedding: [1, 0] },
 ]);
 
 describe('judgeNovelty', () => {

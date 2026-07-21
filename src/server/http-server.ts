@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { App } from '../app/bootstrap.js';
 import type { TurnMeta } from '../chat/session.js';
+import { CapturedApprovalError } from '../knowledge/capture-store.js';
 
 export interface ChatServerConfig {
   app: App;
@@ -13,6 +14,10 @@ export interface ChatServerConfig {
 }
 
 const MAX_BODY_BYTES = 1_000_000;
+
+export function isLoopbackAddress(address: string | undefined): boolean {
+  return address === '127.0.0.1' || address === '::1' || address?.startsWith('::ffff:127.') === true;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -143,6 +148,34 @@ export function createChatServer(config: ChatServerConfig): Server {
       const items = await app.listCaptured();
       sendJson(res, 200, { items });
       return;
+    }
+    if (route === 'POST /api/captured/approve') {
+      if (!isLoopbackAddress(req.socket.remoteAddress)) {
+        sendJson(res, 403, { error: 'captured approval is restricted to loopback clients' });
+        return;
+      }
+      let body: unknown;
+      try {
+        body = JSON.parse(await readBody(req));
+      } catch {
+        sendJson(res, 400, { error: '잘못된 JSON 본문' });
+        return;
+      }
+      if (!isRecord(body) || typeof body['id'] !== 'string' || body['id'].trim().length === 0) {
+        sendJson(res, 400, { error: 'id is required' });
+        return;
+      }
+      try {
+        sendJson(res, 200, await app.approveCaptured(body['id'], new Date().toISOString()));
+        return;
+      } catch (error) {
+        if (error instanceof CapturedApprovalError) {
+          const status = { INVALID_ID: 400, NOT_FOUND: 404, NOT_DRAFT: 409 }[error.code];
+          sendJson(res, status, { error: error.message, code: error.code });
+          return;
+        }
+        throw error;
+      }
     }
     if (route === 'POST /api/chat') {
       await handleChat(req, res);

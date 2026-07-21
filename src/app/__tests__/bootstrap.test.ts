@@ -68,7 +68,7 @@ describe('createApp', () => {
   it('인덱스의 임베딩 모델이 다르면 무시하고 notice를 남긴다 (에러)', async () => {
     await writeFile(
       join(dir, 'index.json'),
-      JSON.stringify({ version: 1, model: '다른모델', createdAt: 't', chunks: [] }),
+      JSON.stringify({ version: 2, model: '다른모델', createdAt: 't', sourceFingerprint: 'fp', chunks: [] }),
       'utf8',
     );
 
@@ -105,5 +105,30 @@ describe('createApp', () => {
     expect(app.startupNotices).toEqual([]);
     expect(app.session.getHistory()).toEqual([]);
     expect(app.modelName).toBe('fake-llm');
+  });
+
+  it('문서가 index 저장 후 바뀌면 stale notice를 내고 load하지 않는다', async () => {
+    const app = await createApp(envFor(), { client: new FakeLlmClient(), embedder: new FakeEmbedder() });
+    await app.rebuildIndex('t0');
+    await writeFile(join(dir, 'docs', 'a.md'), '# 제목\n변경됨');
+    const stale = await createApp(envFor(), { client: new FakeLlmClient(), embedder: new FakeEmbedder() });
+    expect(stale.startupNotices.join(' ')).toContain('문서보다 오래되어');
+    expect(stale.startupNotices.join(' ')).not.toContain('RAG 인덱스 로드:');
+  });
+
+  it('구버전과 손상된 index는 서로 다른 notice를 남긴다', async () => {
+    await writeFile(join(dir, 'index.json'), JSON.stringify({ version: 1, model: 'm', createdAt: 't', chunks: [] }));
+    const old = await createApp(envFor(), { client: new FakeLlmClient(), embedder: new FakeEmbedder() });
+    expect(old.startupNotices.join(' ')).toContain('구버전');
+    await writeFile(join(dir, 'index.json'), '{broken');
+    const invalid = await createApp(envFor(), { client: new FakeLlmClient(), embedder: new FakeEmbedder() });
+    expect(invalid.startupNotices.join(' ')).toContain('손상');
+  });
+
+  it.each(['-1', '1.1', 'NaN'])('잘못된 RAG_MIN_VECTOR_SCORE=%s는 default notice를 낸다', async (value) => {
+    const app = await createApp({ ...envFor(), RAG_MIN_VECTOR_SCORE: value }, {
+      client: new FakeLlmClient(), embedder: new FakeEmbedder(),
+    });
+    expect(app.startupNotices.join(' ')).toContain('기본값(0.88)');
   });
 });

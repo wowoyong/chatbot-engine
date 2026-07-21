@@ -50,4 +50,23 @@ describe('ChatSession TurnMeta', () => {
     const { meta } = await drainSend(session.send('질문'));
     expect((meta as { sources: unknown[] }).sources).toEqual([]);
   });
+
+  it('retrieved metadata title/resource를 TurnMeta로 반환한다', async () => {
+    const session = new ChatSession(new StatsClient(), {
+      retriever: {
+        async retrieve() {
+          return {
+            block: 'context',
+            hits: [{ chunk: { source: 'doc.md', heading: '설치', metadata: {
+              title: '설치 가이드', resource: 'https://example.com/docs/install',
+            } } }],
+          };
+        },
+      },
+    });
+    const { meta } = await drainSend(session.send('질문'));
+    expect((meta as { sources: unknown[] }).sources).toEqual([{
+      source: 'doc.md', heading: '설치', title: '설치 가이드', resource: 'https://example.com/docs/install',
+    }]);
+  });
 });

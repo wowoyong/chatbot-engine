@@ -6,9 +6,9 @@ describe('chunkMarkdown', () => {
     const md = '서문\n\n# 제목A\n본문A\n\n## 제목B\n본문B';
     const chunks = chunkMarkdown(md, 'doc.md');
     expect(chunks).toEqual([
-      { source: 'doc.md', heading: '', content: '서문' },
-      { source: 'doc.md', heading: '제목A', content: '본문A' },
-      { source: 'doc.md', heading: '제목B', content: '본문B' },
+      { source: 'doc.md', heading: '', content: '서문', metadata: null },
+      { source: 'doc.md', heading: '제목A', content: '본문A', metadata: null },
+      { source: 'doc.md', heading: '제목B', content: '본문B', metadata: null },
     ]);
   });
 
@@ -47,6 +47,6 @@ describe('chunkMarkdown', () => {
 
   it('헤딩이 전혀 없는 문서는 heading 빈 문자열 청크가 된다 (경계값)', () => {
     const chunks = chunkMarkdown('그냥 본문', 'doc.md');
-    expect(chunks).toEqual([{ source: 'doc.md', heading: '', content: '그냥 본문' }]);
+    expect(chunks).toEqual([{ source: 'doc.md', heading: '', content: '그냥 본문', metadata: null }]);
   });
 });

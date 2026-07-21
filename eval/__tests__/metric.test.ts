@@ -1,11 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { mean, meanReciprocalRank, recallAtK, reciprocalRank, summarize } from '../metric.js';
+import {
+  mean,
+  meanReciprocalRank,
+  recallAtK,
+  reciprocalRank,
+  summarize,
+  summarizeWithAbstention,
+} from '../metric.js';
 
 describe('recallAtK', () => {
   it('정답이 topK 안에 있으면 1, 밖이면 0 (정상/경계)', () => {
     expect(recallAtK(['a', 'b', 'c'], 'b', 1)).toBe(0);
     expect(recallAtK(['a', 'b', 'c'], 'b', 2)).toBe(1);
     expect(recallAtK(['a', 'b', 'c'], 'z', 4)).toBe(0);
+  });
+});
+
+describe('summarizeWithAbstention', () => {
+  it('answerable과 no-answer denominator를 분리한다', () => {
+    expect(summarizeWithAbstention([
+      { ranked: ['a.md'], expected: 'a.md' },
+      { ranked: [], expected: null },
+      { ranked: ['noise.md'], expected: null },
+    ])).toMatchObject({
+      count: 3, answerableCount: 1, noAnswerCount: 2, recallAt1: 1, recallAt4: 1, mrr: 1, noAnswerAccuracy: 0.5,
+    });
+  });
+
+  it('빈 입력과 no-answer 전용 입력도 0 denominator를 안전하게 처리한다', () => {
+    expect(summarizeWithAbstention([])).toMatchObject({ count: 0, answerableCount: 0, noAnswerCount: 0, noAnswerAccuracy: 0 });
+    expect(summarizeWithAbstention([{ ranked: [], expected: null }])).toMatchObject({
+      count: 1, answerableCount: 0, noAnswerCount: 1, recallAt1: 0, noAnswerAccuracy: 1,
+    });
   });
 });
 
