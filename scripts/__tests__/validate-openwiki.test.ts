@@ -59,19 +59,12 @@ describe('validateOpenWiki', () => {
     expect(messages.some((message) => message.includes('pin 0.2.1'))).toBe(true);
   });
 
-  it.each(['type', 'title', 'description', 'tags', 'timestamp'])(
-    '필수 OKF metadata %s 누락을 보고한다',
-    async (field) => {
-      const fixture = await createFixture();
-      const lines = [
-        '---', 'type: Reference', 'title: RAG', 'description: fixture', 'tags: []',
-        'timestamp: 2026-07-21T00:00:00Z', '---', '', '# RAG',
-      ].filter((line) => !line.startsWith(`${field}:`));
-      await writeFile(join(fixture.openwiki, 'components', 'rag.md'), lines.join('\n'));
-      const messages = (await validateOpenWiki(fixture.openwiki, fixture.repo)).map((issue) => issue.message);
-      expect(messages.some((message) => message.includes(`metadata ${field}`))).toBe(true);
-    },
-  );
+  it('필수 OKF metadata type 누락을 보고한다', async () => {
+    const fixture = await createFixture();
+    await writeFile(join(fixture.openwiki, 'components', 'rag.md'), '---\ntitle: RAG\n---\n\n# RAG');
+    const messages = (await validateOpenWiki(fixture.openwiki, fixture.repo)).map((issue) => issue.message);
+    expect(messages.some((message) => message.includes('metadata type'))).toBe(true);
+  });
 
   it('fenced stale command와 잘못된 link encoding을 issue로 누적한다', async () => {
     const fixture = await createFixture();

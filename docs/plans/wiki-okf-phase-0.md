@@ -120,7 +120,7 @@ Generate an OKF v0.1 knowledge bundle for this repository. Write generated docum
 
 - Read `package.json` before documenting commands. Do not invent `npm start`.
 - Read current TypeScript before stating behavior or test counts.
-- Mark generated pages with OKF frontmatter containing at least `type`, `title`, `description`, `tags`, and `timestamp`.
+- Mark generated concept pages with OKF frontmatter. `type` is required; other OKF fields are optional.
 - Use standard Markdown links between related concepts.
 - Treat `INSTRUCTIONS.md` as author-owned configuration; do not list it as a concept.
 - Do not copy secrets, `.chatbot/` contents, model weights, or generated `dist/` output.

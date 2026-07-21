@@ -79,14 +79,8 @@ async function validateOkfMetadata(
     if (name === 'log.md' || name === 'INSTRUCTIONS.md') continue;
     try {
       const parsed = parseMarkdownDocument(source);
-      const requiredScalars = ['type', 'title', 'description', 'timestamp'] as const;
-      for (const key of requiredScalars) {
-        if (parsed.metadata?.[key]?.trim().length === 0 || parsed.metadata?.[key] === undefined) {
-          issues.push({ file: name, message: `OKF metadata ${key} is missing` });
-        }
-      }
-      if (!/^tags:\s*\[[^\n]*\]\s*$/m.test(source)) {
-        issues.push({ file: name, message: 'OKF metadata tags flow-list is missing' });
+      if (parsed.metadata?.type?.trim().length === 0 || parsed.metadata?.type === undefined) {
+        issues.push({ file: name, message: 'OKF metadata type is missing' });
       }
     } catch (error) {
       issues.push({
